@@ -4203,9 +4203,17 @@
         }
 
         async function loadViewerData() {
+            console.log('=== loadViewerData called ===');
+            console.log('Form title:', state.settings.title);
+            console.log('Fields count:', state.fields.length);
+            console.log('Existing collected data:', state.collectedData.length);
+            
             // Show loading state
             const dataContainer = document.getElementById('dataContent');
             const dashContainer = document.getElementById('dashboardContent');
+            
+            console.log('dataContainer found:', !!dataContainer);
+            console.log('dashContainer found:', !!dashContainer);
             
             if (dataContainer) {
                 dataContainer.innerHTML = `<p style="text-align:center;padding:40px;"><span class="spin" style="display:inline-block;">${getIcon('loader', 20)}</span> Loading data from Google Sheets...</p>`;
@@ -4217,8 +4225,9 @@
             // Try to load from Google Sheets
             try {
                 console.log('Loading data from Google Sheets...');
+                console.log('Script URL:', CONFIG.AUTH_SCRIPT_URL);
                 const sheetsData = await loadFromGoogleSheets();
-                console.log('Loaded from Sheets:', sheetsData.length, 'records');
+                console.log('Loaded from Sheets:', sheetsData?.length || 0, 'records');
                 
                 if (sheetsData && sheetsData.length > 0) {
                     // Use Google Sheets as primary data source
@@ -4267,14 +4276,23 @@
                 console.log('Fallback to local data:', state.collectedData.length, 'records');
             }
             
+            console.log('Calling renderDataContent...');
             renderDataContent();
+            console.log('Calling renderDashboard...');
             renderDashboard();
+            console.log('Calling updateConnectionStatus...');
             updateConnectionStatus();
+            console.log('=== loadViewerData complete ===');
         }
 
         function renderDataContent() {
+            console.log('=== renderDataContent called ===');
             const container = document.getElementById('dataContent');
+            console.log('dataContent container:', !!container);
             if (!container) return;
+            
+            console.log('state.collectedData:', state.collectedData?.length);
+            console.log('state.fields:', state.fields?.length);
             
             const orderedFilterFields = getOrderedFilterFields();
             const filteredData = getFilteredData();
@@ -4478,8 +4496,13 @@
         };
 
         function renderDashboard() {
+            console.log('=== renderDashboard called ===');
             const container = document.getElementById('dashboardContent');
+            console.log('dashboardContent container:', !!container);
             if (!container) return;
+            
+            console.log('state.collectedData:', state.collectedData?.length);
+            console.log('state.fields:', state.fields?.length);
             
             const orderedFilterFields = getOrderedFilterFields();
             const filteredData = getFilteredData();
@@ -4656,14 +4679,23 @@
         }
 
         function showTab(tab, btn) {
+            console.log('=== showTab called ===', tab);
             document.querySelectorAll('.viewer-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.viewer-nav-btn').forEach(b => b.classList.remove('active'));
             const tabEl = document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            console.log('Tab element ID:', 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            console.log('Tab element found:', !!tabEl);
             if (tabEl) tabEl.classList.add('active');
             if (btn) btn.classList.add('active');
             
-            if (tab === 'data') renderDataContent();
-            if (tab === 'dashboard') renderDashboard();
+            if (tab === 'data') {
+                console.log('Rendering data tab...');
+                renderDataContent();
+            }
+            if (tab === 'dashboard') {
+                console.log('Rendering dashboard tab...');
+                renderDashboard();
+            }
         }
 
         function goToPage(pageIndex) {
