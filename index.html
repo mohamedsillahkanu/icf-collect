@@ -222,6 +222,29 @@
         .next-btn { background: #004080; color: white; }
         .submit-btn { background: #28a745; color: white; }
         
+        /* Draft Panel Styles */
+        .draft-actions-bar { display: flex; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 2px dashed #dee2e6; flex-wrap: wrap; }
+        .draft-save-btn, .draft-toggle-btn { padding: 10px 16px; border: 2px solid #6f42c1; border-radius: 6px; font-family: 'Oswald', sans-serif; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .draft-save-btn { background: #6f42c1; color: white; }
+        .draft-save-btn:hover { background: #5a32a3; }
+        .draft-toggle-btn { background: white; color: #6f42c1; }
+        .draft-toggle-btn:hover { background: #f3f0ff; }
+        .drafts-panel-wrapper { margin-top: 15px; border: 2px solid #6f42c1; border-radius: 8px; background: #f8f9fa; }
+        .drafts-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); color: white; font-size: 12px; font-weight: 700; border-radius: 6px 6px 0 0; }
+        .drafts-list { max-height: 250px; overflow-y: auto; }
+        .draft-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #dee2e6; gap: 10px; }
+        .draft-item:last-child { border-bottom: none; }
+        .draft-item:hover { background: #e9ecef; }
+        .draft-info { flex: 1; min-width: 0; }
+        .draft-preview { font-size: 11px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .draft-date { font-size: 9px; color: #868e96; margin-top: 2px; }
+        .draft-actions { display: flex; gap: 6px; }
+        .draft-btn { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .draft-btn.load { background: #17a2b8; color: white; }
+        .draft-btn.load:hover { background: #138496; }
+        .draft-btn.delete { background: #dc3545; color: white; }
+        .draft-btn.delete:hover { background: #c82333; }
+        
         /* Data Table */
         .data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
         .data-table th, .data-table td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
@@ -425,6 +448,7 @@
             <div class="sidebar-section">
                 <h3 class="sidebar-title"><span data-icon="sparkles" data-size="14"></span> Special Fields</h3>
                 <div class="field-type" data-type="gps"><span data-icon="map-pin" data-size="14"></span> GPS Location</div>
+                <div class="field-type" data-type="qrcode"><span data-icon="qr-code" data-size="14"></span> QR/Barcode Scanner</div>
                 <div class="field-type" data-type="rating"><span data-icon="star" data-size="14"></span> Rating</div>
             </div>
             <div class="sidebar-section">
@@ -709,7 +733,11 @@
             'layers': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
             'activity': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
             'file-spreadsheet': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>',
-            'code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
+            'code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+            'qr-code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>',
+            'scan': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
+            'file-edit': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l1-3.95 5.42-5.44Z"/></svg>',
+            'copy-check': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 15 2 2 4-4"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
         };
         
         function getIcon(name, size = 16) {
@@ -790,7 +818,8 @@
             isSharedMode: false,
             settings: {
                 title: 'My Data Collection Form',
-                logo: CONFIG.LOGO_URL
+                logo: CONFIG.LOGO_URL,
+                aggregateColumn: '' // Column used for grouping in aggregate view
             },
             sheets: {
                 scriptUrl: CONFIG.AUTH_SCRIPT_URL,
@@ -835,6 +864,7 @@
             checkbox: { label: 'Checkbox', icon: 'check-square', defaultLabel: 'Checkbox', valueType: 'TRUE_ONLY', category: 'categorical', options: ['Option 1', 'Option 2'] },
             yesno: { label: 'Yes/No', icon: 'toggle-left', defaultLabel: 'Yes/No Question', valueType: 'BOOLEAN', category: 'categorical' },
             gps: { label: 'GPS', icon: 'map-pin', defaultLabel: 'GPS Location', valueType: 'TEXT', category: 'text' },
+            qrcode: { label: 'QR Code', icon: 'qr-code', defaultLabel: 'QR/Barcode Scanner', valueType: 'TEXT', category: 'text' },
             rating: { label: 'Rating', icon: 'star', defaultLabel: 'Rating', valueType: 'INTEGER', category: 'categorical', max: 5 },
             section: { label: 'Section', icon: 'folder', defaultLabel: 'New Section', valueType: null, category: 'structure' }
         };
@@ -2081,16 +2111,17 @@
             
             const periodColumn = state.dhis2.periodColumn;
             const orgUnitColumn = state.dhis2.orgUnitColumn;
+            const aggregateColumn = state.settings.aggregateColumn || orgUnitColumn;
             
             let success = 0, failed = 0;
             
             for (const record of aggregateData) {
                 const period = record._period;
-                const orgUnitName = record._orgUnit;
-                const orgUnitId = state.dhis2.orgUnitMap[orgUnitName?.toLowerCase().trim()];
+                const groupValue = record._group;
+                const orgUnitId = state.dhis2.orgUnitMap[groupValue?.toLowerCase().trim()];
                 
                 if (!orgUnitId) {
-                    addLog('error', `  ✗ No org unit match: ${orgUnitName}`);
+                    addLog('error', `  ✗ No org unit match: ${groupValue}`);
                     failed++;
                     continue;
                 }
@@ -2101,7 +2132,7 @@
                 const dataFields = state.fields.filter(f => 
                     f.type !== 'section' && 
                     f.name !== periodColumn && 
-                    f.name !== orgUnitColumn &&
+                    f.name !== aggregateColumn &&
                     !skipTypes.includes(f.type)
                 );
                 
@@ -2349,37 +2380,48 @@
             const periodColumn = state.dhis2.periodColumn;
             const orgUnitColumn = state.dhis2.orgUnitColumn;
             
-            // If no period/orgunit columns set, aggregate by month from timestamp
-            const useDefaultGrouping = !periodColumn && !orgUnitColumn;
+            // Use aggregateColumn from settings, or fall back to orgUnitColumn for DHIS2
+            const aggregateColumn = state.settings.aggregateColumn || orgUnitColumn;
+            
+            // If no aggregation column set, use default grouping by month
+            const useDefaultGrouping = !aggregateColumn && !periodColumn;
             
             const grouped = {};
             const data = getFilteredData();
             
             if (data.length === 0) return [];
             
-            // Get field names to skip (period and org unit)
-            const skipFields = [periodColumn, orgUnitColumn].filter(Boolean);
+            // Get field names to skip (period and aggregate column)
+            const skipFields = [periodColumn, aggregateColumn].filter(Boolean);
             // Field types that cannot be aggregated
             const skipTypes = ['phone', 'gps', 'email', 'text', 'textarea', 'date', 'time'];
             
             data.forEach(record => {
-                let period, orgUnit, key;
+                let period, groupValue, key;
                 
                 if (useDefaultGrouping) {
-                    // Use timestamp month as period, "All" as org unit
+                    // Use timestamp month as period, "All" as group
                     const ts = record._timestamp ? new Date(record._timestamp) : new Date();
                     period = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}`;
-                    orgUnit = 'All';
-                    key = `${orgUnit}|||${period}`;
+                    groupValue = 'All';
+                    key = `${groupValue}|||${period}`;
                 } else {
-                    period = periodColumn ? (record[periodColumn] || 'Unknown') : 'All';
-                    orgUnit = orgUnitColumn ? (record[orgUnitColumn] || 'Unknown') : 'All';
-                    key = `${orgUnit}|||${period}`;
+                    // Use period column or timestamp month
+                    if (periodColumn && record[periodColumn]) {
+                        period = record[periodColumn];
+                    } else {
+                        const ts = record._timestamp ? new Date(record._timestamp) : new Date();
+                        period = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}`;
+                    }
+                    
+                    // Use aggregate column value
+                    groupValue = aggregateColumn ? (record[aggregateColumn] || 'Unknown') : 'All';
+                    key = `${groupValue}|||${period}`;
                 }
                 
                 if (!grouped[key]) {
                     grouped[key] = {
-                        _orgUnit: orgUnit,
+                        _group: groupValue,
                         _period: period,
                         _count: 0
                     };
@@ -2387,11 +2429,11 @@
                 
                 grouped[key]._count++;
                 
-                // Aggregate other fields (excluding period, orgunit columns, section, and text types)
+                // Aggregate other fields (excluding period, aggregate columns, section, and text types)
                 state.fields.forEach(field => {
                     if (field.type === 'section') return;
                     
-                    // Skip period and org unit columns - they are used for grouping, not aggregation
+                    // Skip period and aggregate columns - they are used for grouping, not aggregation
                     if (skipFields.includes(field.name)) return;
                     
                     // Skip non-aggregatable field types
@@ -2924,6 +2966,13 @@
                                 <span>Required Field</span>
                             </label>
                         </div>
+                        <div class="property-group">
+                            <label class="property-checkbox">
+                                <input type="checkbox" id="propCheckDuplicate" ${field.checkDuplicate ? 'checked' : ''}>
+                                <span>Check for Duplicates</span>
+                            </label>
+                            <p style="font-size:9px;color:#868e96;margin-top:4px;">Block submission if this value already exists in Google Sheets</p>
+                        </div>
                     ` : ''}
                 </div>
             `;
@@ -3071,6 +3120,7 @@
             document.getElementById('propLabel')?.addEventListener('change', (e) => updateField('label', e.target.value));
             document.getElementById('propName')?.addEventListener('change', (e) => updateField('name', e.target.value));
             document.getElementById('propRequired')?.addEventListener('change', (e) => updateField('required', e.target.checked));
+            document.getElementById('propCheckDuplicate')?.addEventListener('change', (e) => updateField('checkDuplicate', e.target.checked));
             document.getElementById('propOptions')?.addEventListener('change', (e) => updateField('options', e.target.value.split('\n').filter(o => o.trim())));
         }
         
@@ -3786,7 +3836,7 @@
             if (state.fields.length === 0) { notify('Add fields!', 'error'); return; }
             
             const formData = {
-                s: { t: state.settings.title, l: state.settings.logo },
+                s: { t: state.settings.title, l: state.settings.logo, ac: state.settings.aggregateColumn },
                 f: state.fields.map(f => ({ 
                     i: f.id, y: f.type, l: f.label, n: f.name, r: f.required, o: f.options, mx: f.max,
                     // Validation fields
@@ -3795,7 +3845,8 @@
                     mnl: f.minLength, mxl: f.maxLength, el: f.exactLength,
                     ed: f.exactDigits, mnd: f.minDigits, mxd: f.maxDigits,
                     nfd: f.noFutureDates, npd: f.noPastDates, mid: f.minDate, mxd2: f.maxDate,
-                    at: f.autoTime
+                    at: f.autoTime,
+                    cd: f.checkDuplicate // Check for duplicates
                 })),
                 d: state.dhis2.datasetId || state.dhis2.programId ? { 
                     id: state.dhis2.datasetId,
@@ -3929,7 +3980,7 @@
             document.querySelector('.header').style.display = 'none';
             document.querySelector('.footer').style.display = 'none';
             
-            state.settings = { title: data.s?.t || 'Form', logo: data.s?.l || state.settings.logo };
+            state.settings = { title: data.s?.t || 'Form', logo: data.s?.l || state.settings.logo, aggregateColumn: data.s?.ac || '' };
             state.fields = (data.f || []).map(f => ({
                 id: f.i, type: f.y, label: f.l, name: f.n, required: f.r || false, options: f.o || [], max: f.mx || 5,
                 // Validation fields
@@ -3938,7 +3989,8 @@
                 minLength: f.mnl, maxLength: f.mxl, exactLength: f.el,
                 exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
                 noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
-                autoTime: f.at !== false
+                autoTime: f.at !== false,
+                checkDuplicate: f.cd || false
             }));
             
             // Load DHIS2 dataset/program info
@@ -4058,6 +4110,19 @@
                             input = `<div><button type="button" onclick="captureGPS(this)" style="padding:10px 20px;background:#004080;color:white;border:none;border-radius:6px;cursor:pointer;"><span data-icon="map-pin" data-size="14"></span> Get Location</button><input type="hidden" name="${field.name}"><div class="gps-status" style="margin-top:6px;font-size:11px;"></div>
                 `;
                             break;
+                        case 'qrcode':
+                            input = `<div class="qr-scanner-container">
+                                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                                    <button type="button" onclick="startQRScanner(this)" style="padding:10px 20px;background:#6f42c1;color:white;border:none;border-radius:6px;cursor:pointer;"><span data-icon="scan" data-size="14"></span> Scan QR/Barcode</button>
+                                    <input type="text" name="${field.name}" class="viewer-input" style="flex:1;min-width:150px;" placeholder="Or enter manually" ${reqAttr}>
+                                </div>
+                                <div class="qr-preview" style="margin-top:10px;display:none;">
+                                    <video class="qr-video" style="width:100%;max-width:300px;border-radius:8px;"></video>
+                                    <button type="button" onclick="stopQRScanner(this)" style="margin-top:8px;padding:6px 12px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">Stop Scanner</button>
+                                </div>
+                                <div class="qr-status" style="margin-top:6px;font-size:11px;"></div>
+                            </div>`;
+                            break;
                         case 'rating':
                             input = `<div>${Array(field.max || 5).fill().map((_, i) => `<span onclick="setRating(this,${i+1})" class="rating-star" style="font-size:24px;cursor:pointer;opacity:0.3;color:#ffc107;">★</span>`).join('')}<input type="hidden" name="${field.name}"></div>`;
                             break;
@@ -4107,6 +4172,25 @@
                             </div>
                             <div class="viewer-body">
                                 <form id="viewerForm">${pagesHtml}</form>
+                                
+                                <!-- Draft Actions -->
+                                <div class="draft-actions-bar">
+                                    <button type="button" class="draft-save-btn" onclick="saveDraft()">
+                                        <span data-icon="file-edit" data-size="14"></span> Save as Draft
+                                    </button>
+                                    <button type="button" class="draft-toggle-btn" onclick="toggleDraftsPanel()">
+                                        <span data-icon="folder" data-size="14"></span> <span id="draftsCount">Drafts (0)</span>
+                                    </button>
+                                </div>
+                                
+                                <!-- Drafts Panel -->
+                                <div id="draftsPanelWrapper" class="drafts-panel-wrapper" style="display:none;">
+                                    <div class="drafts-panel-header">
+                                        <span><span data-icon="file-edit" data-size="14"></span> Saved Drafts</span>
+                                        <button onclick="toggleDraftsPanel()" style="background:none;border:none;cursor:pointer;color:#666;">✕</button>
+                                    </div>
+                                    <div id="draftsPanel"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4129,6 +4213,12 @@
             setupFormSubmit();
             loadViewerData();
             initIcons();
+            
+            // Initialize drafts panel
+            setTimeout(() => {
+                renderDraftsPanel();
+                updateDraftsCount();
+            }, 100);
             
             // Apply initial logic after form renders
             setTimeout(() => applyFormLogic(), 100);
@@ -4159,8 +4249,26 @@
                 const submitBtn = form.querySelector('.submit-btn');
                 const originalText = submitBtn ? submitBtn.innerHTML : '';
                 if (submitBtn) {
-                    submitBtn.innerHTML = '<span class="spin" style="display:inline-block;">' + getIcon('loader', 14) + '</span> Submitting...';
+                    submitBtn.innerHTML = '<span class="spin" style="display:inline-block;">' + getIcon('loader', 14) + '</span> Checking...';
                     submitBtn.disabled = true;
+                }
+                
+                // Check for duplicates
+                const duplicateFields = state.fields.filter(f => f.checkDuplicate && data[f.name]);
+                if (duplicateFields.length > 0) {
+                    const duplicateResult = await checkDuplicates(data, duplicateFields);
+                    if (duplicateResult.hasDuplicate) {
+                        if (submitBtn) {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }
+                        notify(`Duplicate found: ${duplicateResult.field} = "${duplicateResult.value}" already exists`, 'error');
+                        return;
+                    }
+                }
+                
+                if (submitBtn) {
+                    submitBtn.innerHTML = '<span class="spin" style="display:inline-block;">' + getIcon('loader', 14) + '</span> Submitting...';
                 }
                 
                 // Submit to Google Sheets first (if online)
@@ -4175,6 +4283,14 @@
                 state.collectedData.push(data);
                 saveToStorage();
                 saveFormToList();
+                
+                // Remove from drafts if it was a draft being submitted
+                const draftId = form.dataset.draftId ? parseInt(form.dataset.draftId) : null;
+                if (draftId) {
+                    removeDraft(draftId);
+                    delete form.dataset.draftId;
+                    updateDraftsCount();
+                }
                 
                 // Reset form
                 form.reset();
@@ -4201,19 +4317,199 @@
                 loadViewerData();
             };
         }
+        
+        // Check for duplicate entries in Google Sheets
+        async function checkDuplicates(data, duplicateFields) {
+            try {
+                // First check local data
+                for (const field of duplicateFields) {
+                    const value = data[field.name];
+                    const localDuplicate = state.collectedData.find(d => d[field.name] === value);
+                    if (localDuplicate) {
+                        return { hasDuplicate: true, field: field.label, value: value };
+                    }
+                }
+                
+                // Then check Google Sheets
+                const existingData = await loadFromGoogleSheets();
+                for (const field of duplicateFields) {
+                    const value = data[field.name];
+                    const sheetDuplicate = existingData.find(d => d[field.name] === value);
+                    if (sheetDuplicate) {
+                        return { hasDuplicate: true, field: field.label, value: value };
+                    }
+                }
+                
+                return { hasDuplicate: false };
+            } catch (err) {
+                console.error('Duplicate check error:', err);
+                return { hasDuplicate: false }; // Allow submission if check fails
+            }
+        }
+        
+        // ==================== DRAFT FUNCTIONALITY ====================
+        function getDraftStorageKey() {
+            return `icf_drafts_${state.settings.title.replace(/\s+/g, '_')}`;
+        }
+        
+        function loadDrafts() {
+            try {
+                return JSON.parse(localStorage.getItem(getDraftStorageKey()) || '[]');
+            } catch (err) {
+                return [];
+            }
+        }
+        
+        function saveDrafts(drafts) {
+            localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
+        }
+        
+        window.saveDraft = function() {
+            const form = document.getElementById('viewerForm');
+            if (!form) return;
+            
+            const data = { 
+                _draftId: Date.now(), 
+                _savedAt: new Date().toISOString()
+            };
+            new FormData(form).forEach((v, k) => data[k] = v);
+            
+            // Check if any field has data
+            const hasData = state.fields.some(f => f.type !== 'section' && data[f.name]);
+            if (!hasData) {
+                notify('No data to save as draft', 'info');
+                return;
+            }
+            
+            const drafts = loadDrafts();
+            drafts.push(data);
+            saveDrafts(drafts);
+            
+            notify('Draft saved!', 'success');
+            renderDraftsPanel();
+            updateDraftsCount();
+        };
+        
+        window.loadDraft = function(draftId) {
+            const drafts = loadDrafts();
+            const draft = drafts.find(d => d._draftId === draftId);
+            if (!draft) return;
+            
+            const form = document.getElementById('viewerForm');
+            if (!form) return;
+            
+            // Populate form with draft data
+            state.fields.forEach(field => {
+                if (field.type === 'section') return;
+                const value = draft[field.name];
+                if (value === undefined) return;
+                
+                const input = form.querySelector(`[name="${field.name}"]`);
+                if (!input) return;
+                
+                if (input.type === 'radio') {
+                    // Find the radio with matching value
+                    const radio = form.querySelector(`input[name="${field.name}"][value="${value}"]`);
+                    if (radio) radio.checked = true;
+                } else if (input.type === 'checkbox') {
+                    const values = Array.isArray(value) ? value : [value];
+                    form.querySelectorAll(`input[name="${field.name}"]`).forEach(cb => {
+                        cb.checked = values.includes(cb.value);
+                    });
+                } else {
+                    input.value = value;
+                }
+            });
+            
+            // Store draft ID for removal after submit
+            form.dataset.draftId = draftId;
+            
+            notify('Draft loaded!', 'info');
+            goToPage(0);
+            setTimeout(() => applyFormLogic(), 100);
+        };
+        
+        window.deleteDraft = function(draftId) {
+            if (!confirm('Delete this draft?')) return;
+            removeDraft(draftId);
+            notify('Draft deleted');
+            renderDraftsPanel();
+            updateDraftsCount();
+        };
+        
+        function removeDraft(draftId) {
+            if (!draftId) return;
+            const drafts = loadDrafts();
+            const filtered = drafts.filter(d => d._draftId !== draftId);
+            saveDrafts(filtered);
+        }
+        
+        function renderDraftsPanel() {
+            const container = document.getElementById('draftsPanel');
+            if (!container) return;
+            
+            const drafts = loadDrafts();
+            
+            if (drafts.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:#868e96;font-size:11px;padding:10px;">No saved drafts</p>';
+                return;
+            }
+            
+            let html = '<div class="drafts-list">';
+            drafts.forEach(draft => {
+                const savedDate = new Date(draft._savedAt).toLocaleString();
+                // Get first few non-empty field values for preview
+                const preview = state.fields
+                    .filter(f => f.type !== 'section' && draft[f.name])
+                    .slice(0, 2)
+                    .map(f => `${f.label}: ${String(draft[f.name]).substring(0, 20)}`)
+                    .join(', ') || 'Empty draft';
+                
+                html += `
+                    <div class="draft-item">
+                        <div class="draft-info">
+                            <div class="draft-preview">${escapeHtml(preview)}</div>
+                            <div class="draft-date">${savedDate}</div>
+                        </div>
+                        <div class="draft-actions">
+                            <button class="draft-btn load" onclick="loadDraft(${draft._draftId})" title="Load Draft">
+                                <span data-icon="file-edit" data-size="12"></span>
+                            </button>
+                            <button class="draft-btn delete" onclick="deleteDraft(${draft._draftId})" title="Delete Draft">
+                                <span data-icon="trash-2" data-size="12"></span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            container.innerHTML = html;
+            initIcons();
+        }
+        
+        window.toggleDraftsPanel = function() {
+            const wrapper = document.getElementById('draftsPanelWrapper');
+            if (wrapper) {
+                wrapper.style.display = wrapper.style.display === 'none' ? 'block' : 'none';
+                if (wrapper.style.display === 'block') {
+                    renderDraftsPanel();
+                }
+            }
+        };
+        
+        function updateDraftsCount() {
+            const countEl = document.getElementById('draftsCount');
+            if (countEl) {
+                const drafts = loadDrafts();
+                countEl.textContent = `Drafts (${drafts.length})`;
+            }
+        }
 
         async function loadViewerData() {
-            console.log('=== loadViewerData called ===');
-            console.log('Form title:', state.settings.title);
-            console.log('Fields count:', state.fields.length);
-            console.log('Existing collected data:', state.collectedData.length);
-            
             // Show loading state
             const dataContainer = document.getElementById('dataContent');
             const dashContainer = document.getElementById('dashboardContent');
-            
-            console.log('dataContainer found:', !!dataContainer);
-            console.log('dashContainer found:', !!dashContainer);
             
             if (dataContainer) {
                 dataContainer.innerHTML = `<p style="text-align:center;padding:40px;"><span class="spin" style="display:inline-block;">${getIcon('loader', 20)}</span> Loading data from Google Sheets...</p>`;
@@ -4224,10 +4520,7 @@
             
             // Try to load from Google Sheets
             try {
-                console.log('Loading data from Google Sheets...');
-                console.log('Script URL:', CONFIG.AUTH_SCRIPT_URL);
                 const sheetsData = await loadFromGoogleSheets();
-                console.log('Loaded from Sheets:', sheetsData?.length || 0, 'records');
                 
                 if (sheetsData && sheetsData.length > 0) {
                     // Use Google Sheets as primary data source
@@ -4276,23 +4569,14 @@
                 console.log('Fallback to local data:', state.collectedData.length, 'records');
             }
             
-            console.log('Calling renderDataContent...');
             renderDataContent();
-            console.log('Calling renderDashboard...');
             renderDashboard();
-            console.log('Calling updateConnectionStatus...');
             updateConnectionStatus();
-            console.log('=== loadViewerData complete ===');
         }
 
         function renderDataContent() {
-            console.log('=== renderDataContent called ===');
             const container = document.getElementById('dataContent');
-            console.log('dataContent container:', !!container);
             if (!container) return;
-            
-            console.log('state.collectedData:', state.collectedData?.length);
-            console.log('state.fields:', state.fields?.length);
             
             const orderedFilterFields = getOrderedFilterFields();
             const filteredData = getFilteredData();
@@ -4327,6 +4611,26 @@
                 `;
             });
             
+            // Build aggregate column options (categorical fields that can be used for grouping)
+            const aggregatableFields = state.fields.filter(f => 
+                ['select', 'radio', 'yesno', 'text'].includes(f.type) && f.type !== 'section'
+            );
+            const aggregateColumnHtml = `
+                <div class="config-section" style="margin-bottom:15px;padding:12px;">
+                    <div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="inline-icon">${getIcon('layers', 14)}</span>
+                            <strong style="font-size:11px;">Aggregate By:</strong>
+                            <select class="filter-select" style="min-width:150px;" onchange="setAggregateColumn(this.value)">
+                                <option value="">-- Select Column --</option>
+                                ${aggregatableFields.map(f => `<option value="${f.name}" ${state.settings.aggregateColumn === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                            </select>
+                        </div>
+                        ${state.settings.aggregateColumn ? `<span style="font-size:10px;color:#28a745;"><span class="inline-icon">${getIcon('check-circle', 12)}</span> Grouping by: ${escapeHtml(aggregatableFields.find(f => f.name === state.settings.aggregateColumn)?.label || state.settings.aggregateColumn)}</span>` : '<span style="font-size:10px;color:#868e96;">Select a column to enable aggregate view</span>'}
+                    </div>
+                </div>
+            `;
+            
             container.innerHTML = `
                 <div class="filter-panel">
                     <div class="filter-header">
@@ -4335,6 +4639,8 @@
                     </div>
                     <div class="filter-controls">${filtersHtml}</div>
                 </div>
+                
+                ${aggregateColumnHtml}
                 
                 <div class="data-view-tabs">
                     <div class="data-view-tab ${state.currentDataView === 'case' ? 'active' : ''}" onclick="switchDataView('case')"><span class="inline-icon">${getIcon('list', 14)}</span> Case-Based (${filteredData.length})</div>
@@ -4357,6 +4663,13 @@
         window.switchDataView = function(view) {
             state.currentDataView = view;
             renderDataContent();
+        };
+        
+        window.setAggregateColumn = function(columnName) {
+            state.settings.aggregateColumn = columnName;
+            saveToStorage();
+            renderDataContent();
+            renderDashboard();
         };
 
         function renderCaseTable(data) {
@@ -4390,13 +4703,13 @@
             }
             
             const periodColumn = state.dhis2.periodColumn;
-            const orgUnitColumn = state.dhis2.orgUnitColumn;
+            const aggregateColumn = state.settings.aggregateColumn || state.dhis2.orgUnitColumn;
             
-            // Fields to skip (period, org unit, and non-aggregatable types)
-            const skipFields = [periodColumn, orgUnitColumn].filter(Boolean);
+            // Fields to skip (period, aggregate column, and non-aggregatable types)
+            const skipFields = [periodColumn, aggregateColumn].filter(Boolean);
             const skipTypes = ['phone', 'gps', 'email', 'text', 'textarea', 'date', 'time'];
             
-            // Exclude period, org unit, and text-based fields
+            // Exclude period, aggregate column, and text-based fields
             const dataFields = state.fields.filter(f => 
                 f.type !== 'section' && 
                 !skipFields.includes(f.name) &&
@@ -4430,9 +4743,13 @@
                 // Skip text fields and other non-aggregatable types
             });
             
+            // Get the aggregate column label (aggregateColumn already defined above)
+            const aggregateField = state.fields.find(f => f.name === aggregateColumn);
+            const aggregateLabel = aggregateField?.label || 'Group';
+            
             // Build table
             let html = '<div style="overflow-x:auto;"><table class="aggregate-table"><thead><tr>';
-            html += '<th style="position:sticky;left:0;background:#004080;z-index:2;"><span class="inline-icon">' + getIcon('building-2', 14) + '</span> Facility</th>';
+            html += '<th style="position:sticky;left:0;background:#004080;z-index:2;"><span class="inline-icon">' + getIcon('layers', 14) + '</span> ' + escapeHtml(aggregateLabel) + '</th>';
             html += '<th><span class="inline-icon">' + getIcon('calendar', 14) + '</span> Period</th>';
             html += '<th><span class="inline-icon">' + getIcon('bar-chart-3', 14) + '</span> N</th>';
             
@@ -4444,7 +4761,7 @@
             
             data.forEach(row => {
                 html += `<tr>`;
-                html += `<td style="position:sticky;left:0;background:#fff;z-index:1;font-weight:600;">${escapeHtml(row._orgUnit)}</td>`;
+                html += `<td style="position:sticky;left:0;background:#fff;z-index:1;font-weight:600;">${escapeHtml(row._group)}</td>`;
                 html += `<td>${escapeHtml(row._period)}</td>`;
                 html += `<td class="aggregate-value" style="font-weight:600;">${row._count}</td>`;
                 
@@ -4471,10 +4788,10 @@
             const data = isAggregate ? calculateAggregateData() : getFilteredData();
             if (data.length === 0) { notify('No data', 'error'); return; }
             
-            // For aggregate data, include _orgUnit, _period, _count; for case data, include _timestamp
+            // For aggregate data, include _group, _period, _count; for case data, include _timestamp
             const headers = Object.keys(data[0]).filter(k => {
                 if (isAggregate) {
-                    return k === '_orgUnit' || k === '_period' || k === '_count' || !k.startsWith('_');
+                    return k === '_group' || k === '_period' || k === '_count' || !k.startsWith('_');
                 }
                 return !k.startsWith('_') || k === '_timestamp';
             });
@@ -4496,13 +4813,8 @@
         };
 
         function renderDashboard() {
-            console.log('=== renderDashboard called ===');
             const container = document.getElementById('dashboardContent');
-            console.log('dashboardContent container:', !!container);
             if (!container) return;
-            
-            console.log('state.collectedData:', state.collectedData?.length);
-            console.log('state.fields:', state.fields?.length);
             
             const orderedFilterFields = getOrderedFilterFields();
             const filteredData = getFilteredData();
@@ -4519,8 +4831,11 @@
             const pending = state.collectedData.filter(d => !d._synced && !d._syncError).length;
             const periodColumn = state.dhis2.periodColumn;
             const uniquePeriods = periodColumn ? [...new Set(filteredData.map(d => d[periodColumn]).filter(Boolean))].length : 0;
-            const orgUnitColumn = state.dhis2.orgUnitColumn;
-            const uniqueOrgUnits = orgUnitColumn ? [...new Set(filteredData.map(d => d[orgUnitColumn]).filter(Boolean))].length : 0;
+            
+            // Use aggregateColumn from settings, or fall back to orgUnitColumn for DHIS2
+            const aggregateColumn = state.settings.aggregateColumn || state.dhis2.orgUnitColumn;
+            const aggregateField = state.fields.find(f => f.name === aggregateColumn);
+            const uniqueGroups = aggregateColumn ? [...new Set(filteredData.map(d => d[aggregateColumn]).filter(Boolean))].length : 0;
             
             // Build filter panel HTML (same as Data tab)
             let filtersHtml = `
@@ -4549,11 +4864,11 @@
                 `;
             });
             
-            // Build charts - EXCLUDE org unit column from charts
+            // Build charts - EXCLUDE aggregate column from charts
             const categoricalTypes = ['select', 'radio', 'yesno', 'checkbox'];
             const categoricalFields = state.fields.filter(f => 
                 categoricalTypes.includes(f.type) && 
-                f.name !== orgUnitColumn && 
+                f.name !== aggregateColumn && 
                 f.name !== periodColumn
             );
             const numericFields = state.fields.filter(f => f.type === 'number');
@@ -4623,7 +4938,7 @@
                     <div class="stat-card success"><div class="stat-value">${synced}</div><div class="stat-label">Synced</div></div>
                     <div class="stat-card warning"><div class="stat-value">${pending}</div><div class="stat-label">Pending</div></div>
                     ${periodColumn ? `<div class="stat-card info"><div class="stat-value">${uniquePeriods}</div><div class="stat-label">Periods</div></div>` : ''}
-                    ${orgUnitColumn ? `<div class="stat-card purple"><div class="stat-value">${uniqueOrgUnits}</div><div class="stat-label">Facilities</div></div>` : ''}
+                    ${aggregateColumn ? `<div class="stat-card purple"><div class="stat-value">${uniqueGroups}</div><div class="stat-label">${escapeHtml(aggregateField?.label || 'Groups')}</div></div>` : ''}
                     <div class="stat-card"><div class="stat-value">${aggregateData.length}</div><div class="stat-label">Aggregate Rows</div></div>
                 </div>
                 
@@ -4727,6 +5042,78 @@
             const container = star.parentElement;
             container.querySelectorAll('span').forEach((s, i) => s.style.opacity = i < val ? '1' : '0.3');
             container.querySelector('input').value = val;
+        };
+
+        // QR/Barcode Scanner
+        window.activeQRStream = null;
+        
+        window.startQRScanner = async function(btn) {
+            const container = btn.closest('.qr-scanner-container');
+            const preview = container.querySelector('.qr-preview');
+            const video = container.querySelector('.qr-video');
+            const status = container.querySelector('.qr-status');
+            const input = container.querySelector('input[type="text"]');
+            
+            status.innerHTML = '<span class="inline-icon">' + getIcon('loader', 12) + '</span> Starting camera...';
+            preview.style.display = 'block';
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                video.play();
+                window.activeQRStream = stream;
+                
+                status.innerHTML = '<span class="inline-icon" style="color:#17a2b8;">' + getIcon('scan', 12) + '</span> Point camera at QR code or barcode...';
+                
+                // Check for BarcodeDetector API
+                if ('BarcodeDetector' in window) {
+                    const detector = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'code_93', 'upc_a', 'upc_e', 'itf', 'codabar'] });
+                    
+                    const scanLoop = async () => {
+                        if (!window.activeQRStream) return;
+                        
+                        try {
+                            const barcodes = await detector.detect(video);
+                            if (barcodes.length > 0) {
+                                const value = barcodes[0].rawValue;
+                                input.value = value;
+                                status.innerHTML = '<span class="inline-icon" style="color:#28a745;">' + getIcon('check-circle', 12) + '</span> Scanned: ' + value;
+                                stopQRScanner(btn);
+                                return;
+                            }
+                        } catch (err) {
+                            console.log('Scan error:', err);
+                        }
+                        
+                        if (window.activeQRStream) {
+                            requestAnimationFrame(scanLoop);
+                        }
+                    };
+                    
+                    scanLoop();
+                } else {
+                    status.innerHTML = '<span class="inline-icon" style="color:#ffc107;">' + getIcon('alert-triangle', 12) + '</span> Scanner not supported - enter value manually';
+                }
+            } catch (err) {
+                status.innerHTML = '<span class="inline-icon" style="color:#dc3545;">' + getIcon('x-circle', 12) + '</span> Camera error: ' + err.message;
+                preview.style.display = 'none';
+            }
+        };
+        
+        window.stopQRScanner = function(btn) {
+            const container = btn.closest('.qr-scanner-container');
+            const preview = container.querySelector('.qr-preview');
+            const video = container.querySelector('.qr-video');
+            
+            if (window.activeQRStream) {
+                window.activeQRStream.getTracks().forEach(track => track.stop());
+                window.activeQRStream = null;
+            }
+            
+            video.srcObject = null;
+            preview.style.display = 'none';
         };
 
         // Initialize
