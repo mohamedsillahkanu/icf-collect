@@ -2062,6 +2062,14 @@
             addLog('info', 'Syncing AGGREGATE data to DHIS2...');
             updateDhis2Status('syncing', 'Syncing...');
             
+            // Check if DHIS2 columns are configured
+            if (!state.dhis2.periodColumn || !state.dhis2.orgUnitColumn) {
+                addLog('error', 'Period Column and Org Unit Column must be set in DHIS2 settings');
+                notify('Set Period Column and Org Unit Column in DHIS2 settings first', 'error');
+                updateDhis2Status('disconnected', 'Config needed');
+                return;
+            }
+            
             // Get aggregate data
             const aggregateData = calculateAggregateData();
             
@@ -2341,23 +2349,33 @@
             const periodColumn = state.dhis2.periodColumn;
             const orgUnitColumn = state.dhis2.orgUnitColumn;
             
-            if (!periodColumn || !orgUnitColumn) {
-                notify('Select Period Column and Org Unit Column in DHIS2 settings', 'error');
-                return [];
-            }
+            // If no period/orgunit columns set, aggregate by month from timestamp
+            const useDefaultGrouping = !periodColumn && !orgUnitColumn;
             
             const grouped = {};
             const data = getFilteredData();
             
+            if (data.length === 0) return [];
+            
             // Get field names to skip (period and org unit)
-            const skipFields = [periodColumn, orgUnitColumn];
+            const skipFields = [periodColumn, orgUnitColumn].filter(Boolean);
             // Field types that cannot be aggregated
             const skipTypes = ['phone', 'gps', 'email', 'text', 'textarea', 'date', 'time'];
             
             data.forEach(record => {
-                const period = record[periodColumn] || 'Unknown';
-                const orgUnit = record[orgUnitColumn] || 'Unknown';
-                const key = `${orgUnit}|||${period}`;
+                let period, orgUnit, key;
+                
+                if (useDefaultGrouping) {
+                    // Use timestamp month as period, "All" as org unit
+                    const ts = record._timestamp ? new Date(record._timestamp) : new Date();
+                    period = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}`;
+                    orgUnit = 'All';
+                    key = `${orgUnit}|||${period}`;
+                } else {
+                    period = periodColumn ? (record[periodColumn] || 'Unknown') : 'All';
+                    orgUnit = orgUnitColumn ? (record[orgUnitColumn] || 'Unknown') : 'All';
+                    key = `${orgUnit}|||${period}`;
+                }
                 
                 if (!grouped[key]) {
                     grouped[key] = {
@@ -4350,14 +4368,14 @@
 
         function renderAggregateTable(data) {
             if (data.length === 0) {
-                return '<p style="text-align:center;padding:40px;color:#868e96;"><span data-icon="inbox" data-size="20"></span> No aggregate data (select Period Column and Org Unit Column in DHIS2 settings)</p>';
+                return '<p style="text-align:center;padding:40px;color:#868e96;"><span data-icon="inbox" data-size="20"></span> No aggregate data available</p>';
             }
             
             const periodColumn = state.dhis2.periodColumn;
             const orgUnitColumn = state.dhis2.orgUnitColumn;
             
             // Fields to skip (period, org unit, and non-aggregatable types)
-            const skipFields = [periodColumn, orgUnitColumn];
+            const skipFields = [periodColumn, orgUnitColumn].filter(Boolean);
             const skipTypes = ['phone', 'gps', 'email', 'text', 'textarea', 'date', 'time'];
             
             // Exclude period, org unit, and text-based fields
@@ -4581,8 +4599,8 @@
                     <div class="stat-card"><div class="stat-value">${filteredData.length}</div><div class="stat-label">Total Records</div></div>
                     <div class="stat-card success"><div class="stat-value">${synced}</div><div class="stat-label">Synced</div></div>
                     <div class="stat-card warning"><div class="stat-value">${pending}</div><div class="stat-label">Pending</div></div>
-                    <div class="stat-card info"><div class="stat-value">${uniquePeriods}</div><div class="stat-label">Periods</div></div>
-                    <div class="stat-card purple"><div class="stat-value">${uniqueOrgUnits}</div><div class="stat-label">Facilities</div></div>
+                    ${periodColumn ? `<div class="stat-card info"><div class="stat-value">${uniquePeriods}</div><div class="stat-label">Periods</div></div>` : ''}
+                    ${orgUnitColumn ? `<div class="stat-card purple"><div class="stat-value">${uniqueOrgUnits}</div><div class="stat-label">Facilities</div></div>` : ''}
                     <div class="stat-card"><div class="stat-value">${aggregateData.length}</div><div class="stat-label">Aggregate Rows</div></div>
                 </div>
                 
@@ -4640,7 +4658,8 @@
         function showTab(tab, btn) {
             document.querySelectorAll('.viewer-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.viewer-nav-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1))?.classList.add('active');
+            const tabEl = document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            if (tabEl) tabEl.classList.add('active');
             if (btn) btn.classList.add('active');
             
             if (tab === 'data') renderDataContent();
