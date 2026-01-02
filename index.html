@@ -4114,7 +4114,8 @@
                             input = `<div class="qr-scanner-container">
                                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                                     <button type="button" onclick="startQRScanner(this)" style="padding:10px 20px;background:#6f42c1;color:white;border:none;border-radius:6px;cursor:pointer;"><span data-icon="scan" data-size="14"></span> Scan QR/Barcode</button>
-                                    <input type="text" name="${field.name}" class="viewer-input" style="flex:1;min-width:150px;" placeholder="Or enter manually" ${reqAttr}>
+                                    <input type="hidden" name="${field.name}" ${reqAttr}>
+                                    <span class="qr-value" style="font-size:12px;color:#28a745;font-weight:600;"></span>
                                 </div>
                                 <div class="qr-preview" style="margin-top:10px;display:none;">
                                     <video class="qr-video" style="width:100%;max-width:300px;border-radius:8px;"></video>
@@ -5052,7 +5053,8 @@
             const preview = container.querySelector('.qr-preview');
             const video = container.querySelector('.qr-video');
             const status = container.querySelector('.qr-status');
-            const input = container.querySelector('input[type="text"]');
+            const input = container.querySelector('input[type="hidden"]');
+            const valueDisplay = container.querySelector('.qr-value');
             
             status.innerHTML = '<span class="inline-icon">' + getIcon('loader', 12) + '</span> Starting camera...';
             preview.style.display = 'block';
@@ -5079,7 +5081,8 @@
                             if (barcodes.length > 0) {
                                 const value = barcodes[0].rawValue;
                                 input.value = value;
-                                status.innerHTML = '<span class="inline-icon" style="color:#28a745;">' + getIcon('check-circle', 12) + '</span> Scanned: ' + value;
+                                if (valueDisplay) valueDisplay.textContent = value;
+                                status.innerHTML = '<span class="inline-icon" style="color:#28a745;">' + getIcon('check-circle', 12) + '</span> Scanned!';
                                 stopQRScanner(btn);
                                 return;
                             }
@@ -5094,7 +5097,7 @@
                     
                     scanLoop();
                 } else {
-                    status.innerHTML = '<span class="inline-icon" style="color:#ffc107;">' + getIcon('alert-triangle', 12) + '</span> Scanner not supported - enter value manually';
+                    status.innerHTML = '<span class="inline-icon" style="color:#dc3545;">' + getIcon('x-circle', 12) + '</span> Scanner not supported on this device';
                 }
             } catch (err) {
                 status.innerHTML = '<span class="inline-icon" style="color:#dc3545;">' + getIcon('x-circle', 12) + '</span> Camera error: ' + err.message;
