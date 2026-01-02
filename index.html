@@ -245,6 +245,13 @@
         .draft-btn.delete { background: #dc3545; color: white; }
         .draft-btn.delete:hover { background: #c82333; }
         
+        /* Cascade Field Styles */
+        .cascade-container { display: flex; flex-direction: column; gap: 12px; }
+        .cascade-level { display: flex; flex-direction: column; gap: 4px; }
+        .cascade-label { font-size: 10px; font-weight: 600; color: #004080; text-transform: uppercase; }
+        .cascade-select { padding: 10px 12px; }
+        .cascade-select:disabled { background: #e9ecef; cursor: not-allowed; opacity: 0.7; }
+        
         /* Data Table */
         .data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; }
         .data-table th, .data-table td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
@@ -449,6 +456,7 @@
                 <h3 class="sidebar-title"><span data-icon="sparkles" data-size="14"></span> Special Fields</h3>
                 <div class="field-type" data-type="gps"><span data-icon="map-pin" data-size="14"></span> GPS Location</div>
                 <div class="field-type" data-type="qrcode"><span data-icon="qr-code" data-size="14"></span> QR/Barcode Scanner</div>
+                <div class="field-type" data-type="cascade"><span data-icon="git-branch" data-size="14"></span> Cascading Dropdown</div>
                 <div class="field-type" data-type="rating"><span data-icon="star" data-size="14"></span> Rating</div>
             </div>
             <div class="sidebar-section">
@@ -657,6 +665,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
         // Inline SVG Icons (no external dependency)
@@ -736,6 +745,7 @@
             'code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
             'qr-code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>',
             'scan': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
+            'git-branch': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
             'file-edit': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l1-3.95 5.42-5.44Z"/></svg>',
             'copy-check': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 15 2 2 4-4"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
         };
@@ -865,6 +875,7 @@
             yesno: { label: 'Yes/No', icon: 'toggle-left', defaultLabel: 'Yes/No Question', valueType: 'BOOLEAN', category: 'categorical' },
             gps: { label: 'GPS', icon: 'map-pin', defaultLabel: 'GPS Location', valueType: 'TEXT', category: 'text' },
             qrcode: { label: 'QR Code', icon: 'qr-code', defaultLabel: 'QR/Barcode Scanner', valueType: 'TEXT', category: 'text' },
+            cascade: { label: 'Cascade', icon: 'git-branch', defaultLabel: 'Cascading Dropdown', valueType: 'TEXT', category: 'categorical', cascadeData: [], cascadeColumns: [] },
             rating: { label: 'Rating', icon: 'star', defaultLabel: 'Rating', valueType: 'INTEGER', category: 'categorical', max: 5 },
             section: { label: 'Section', icon: 'folder', defaultLabel: 'New Section', valueType: null, category: 'structure' }
         };
@@ -2878,6 +2889,100 @@
             const field = state.fields.find(f => f.id === state.selectedFieldId);
             if (field) { field[prop] = value; renderFields(); saveToStorage(); }
         }
+        
+        // Download sample cascade template
+        window.downloadCascadeTemplate = function() {
+            // Create sample data with different hierarchy examples
+            const sampleData = [
+                // Headers
+                ['Level_1', 'Level_2', 'Level_3', 'Level_4', 'UID'],
+                // Example 1: Location hierarchy
+                ['Eastern Region', 'Kailahun District', 'Luawa Chiefdom', 'Kailahun Gov Hospital', 'UID001'],
+                ['Eastern Region', 'Kailahun District', 'Luawa Chiefdom', 'Luawa CHC', 'UID002'],
+                ['Eastern Region', 'Kailahun District', 'Jawei Chiefdom', 'Daru CHC', 'UID003'],
+                ['Eastern Region', 'Kenema District', 'Nongowa Chiefdom', 'Kenema Gov Hospital', 'UID004'],
+                ['Southern Region', 'Bo District', 'Badjia Chiefdom', 'Ngelehun CHC', 'UID005'],
+                ['Southern Region', 'Bo District', 'Bagbwe Chiefdom', 'Barlie MCHP', 'UID006'],
+                ['Southern Region', 'Bonthe District', 'Jong Chiefdom', 'Mattru Hospital', 'UID007'],
+                ['Western Region', 'Western Urban', 'East 1', 'Connaught Hospital', 'UID008'],
+                ['Western Region', 'Western Rural', 'Koya Chiefdom', 'Waterloo CHC', 'UID009'],
+            ];
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(sampleData);
+            
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 18 }, // Level_1
+                { wch: 18 }, // Level_2
+                { wch: 18 }, // Level_3
+                { wch: 22 }, // Level_4
+                { wch: 10 }, // UID
+            ];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'CascadeData');
+            
+            // Download
+            XLSX.writeFile(wb, 'cascade_template.xlsx');
+            notify('Template downloaded! Edit columns and data as needed.', 'success');
+        };
+        
+        // Handle cascade Excel file upload
+        window.handleCascadeUpload = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const field = state.fields.find(f => f.id === state.selectedFieldId);
+            if (!field || field.type !== 'cascade') return;
+            
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                
+                // Convert to JSON with headers
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                
+                if (jsonData.length < 2) {
+                    notify('Excel file must have headers and at least one data row', 'error');
+                    return;
+                }
+                
+                // First row is headers (column names)
+                const columns = jsonData[0].map(h => String(h || '').trim()).filter(h => h);
+                
+                // Rest is data rows
+                const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ''));
+                
+                // Store as array of objects
+                const cascadeData = rows.map(row => {
+                    const obj = {};
+                    columns.forEach((col, i) => {
+                        obj[col] = row[i] !== null && row[i] !== undefined ? String(row[i]).trim() : '';
+                    });
+                    return obj;
+                });
+                
+                // Update field
+                field.cascadeColumns = columns;
+                field.cascadeData = cascadeData;
+                field.cascadeValueColumn = columns[columns.length - 1]; // Default to last column
+                
+                renderFields();
+                renderProperties();
+                saveToStorage();
+                
+                notify(`Loaded ${cascadeData.length} rows with ${columns.length} columns`, 'success');
+            } catch (err) {
+                console.error('Excel parse error:', err);
+                notify('Error reading Excel file: ' + err.message, 'error');
+            }
+            
+            // Reset input
+            input.value = '';
+        };
 
         function renderFields() {
             const dropZone = document.getElementById('dropZone');
@@ -2982,6 +3087,56 @@
                     <div class="prop-section">
                         <div class="prop-section-title"><span data-icon="list" data-size="12"></span> Options (one per line)</div>
                         <textarea class="property-textarea" id="propOptions">${(field.options || []).join('\n')}</textarea>
+                    </div>
+                `;
+            }
+            
+            // Cascade field properties
+            if (field.type === 'cascade') {
+                const cascadeColumns = field.cascadeColumns || [];
+                const cascadeDataCount = (field.cascadeData || []).length;
+                
+                html += `
+                    <div class="prop-section">
+                        <div class="prop-section-title"><span data-icon="git-branch" data-size="12"></span> Cascade Data</div>
+                        <p style="font-size:10px;color:#666;margin-bottom:10px;">Upload Excel file with hierarchical data. Each column = dropdown level.</p>
+                        
+                        <div style="background:#f8f9fa;padding:10px;border-radius:6px;margin-bottom:12px;border:1px dashed #dee2e6;">
+                            <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;"><span data-icon="info" data-size="10"></span> Excel Format:</div>
+                            <p style="font-size:9px;color:#666;margin-bottom:8px;">Row 1 = Column headers (dropdown labels)<br>Row 2+ = Data rows (each row = one complete path)</p>
+                            <button class="logic-add-btn" style="background:#6c757d;" onclick="downloadCascadeTemplate()">
+                                <span data-icon="download" data-size="10"></span> Download Sample Template
+                            </button>
+                        </div>
+                        
+                        <div style="margin-bottom:12px;">
+                            <input type="file" id="cascadeFileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleCascadeUpload(this)">
+                            <button class="logic-add-btn" style="background:#17a2b8;" onclick="document.getElementById('cascadeFileInput').click()">
+                                <span data-icon="upload" data-size="10"></span> Upload Excel File
+                            </button>
+                        </div>
+                        
+                        ${cascadeColumns.length > 0 ? `
+                            <div style="background:#e8f4fc;padding:10px;border-radius:6px;margin-bottom:10px;">
+                                <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Loaded Columns:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                    ${cascadeColumns.map((col, i) => `<span style="background:#004080;color:white;padding:3px 8px;border-radius:12px;font-size:10px;">${i+1}. ${col}</span>`).join('')}
+                                </div>
+                                <div style="font-size:9px;color:#666;margin-top:6px;">${cascadeDataCount} rows loaded</div>
+                            </div>
+                            
+                            <div class="property-group">
+                                <label class="property-label">Store Value From Column</label>
+                                <select class="property-input" id="propCascadeValueColumn" onchange="updateField('cascadeValueColumn', this.value)">
+                                    ${cascadeColumns.map(col => `<option value="${col}" ${field.cascadeValueColumn === col ? 'selected' : ''}>${col}</option>`).join('')}
+                                </select>
+                                <p style="font-size:9px;color:#868e96;margin-top:4px;">Which column value to save (usually last column or UID)</p>
+                            </div>
+                        ` : `
+                            <div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;">
+                                <span data-icon="alert-triangle" data-size="12"></span> No data loaded. Upload an Excel file with cascading data.
+                            </div>
+                        `}
                     </div>
                 `;
             }
@@ -3846,7 +4001,11 @@
                     ed: f.exactDigits, mnd: f.minDigits, mxd: f.maxDigits,
                     nfd: f.noFutureDates, npd: f.noPastDates, mid: f.minDate, mxd2: f.maxDate,
                     at: f.autoTime,
-                    cd: f.checkDuplicate // Check for duplicates
+                    cd: f.checkDuplicate, // Check for duplicates
+                    // Cascade fields
+                    cc: f.cascadeColumns, // Cascade column names
+                    cdt: f.cascadeData, // Cascade data rows
+                    cvc: f.cascadeValueColumn // Which column to store as value
                 })),
                 d: state.dhis2.datasetId || state.dhis2.programId ? { 
                     id: state.dhis2.datasetId,
@@ -3990,7 +4149,11 @@
                 exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
                 noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
                 autoTime: f.at !== false,
-                checkDuplicate: f.cd || false
+                checkDuplicate: f.cd || false,
+                // Cascade fields
+                cascadeColumns: f.cc || [],
+                cascadeData: f.cdt || [],
+                cascadeValueColumn: f.cvc || ''
             }));
             
             // Load DHIS2 dataset/program info
@@ -4124,6 +4287,25 @@
                                 <div class="qr-status" style="margin-top:6px;font-size:11px;"></div>
                             </div>`;
                             break;
+                        case 'cascade':
+                            const cascadeColumns = field.cascadeColumns || [];
+                            const cascadeId = field.id;
+                            if (cascadeColumns.length > 0) {
+                                input = `<div class="cascade-container" data-cascade-id="${cascadeId}" data-field-name="${field.name}" data-value-column="${field.cascadeValueColumn || cascadeColumns[cascadeColumns.length - 1]}">
+                                    ${cascadeColumns.map((col, idx) => `
+                                        <div class="cascade-level" data-level="${idx}">
+                                            <label class="cascade-label">${escapeHtml(col)}</label>
+                                            <select class="viewer-input cascade-select" data-column="${col}" data-level="${idx}" onchange="updateCascade(this)" ${idx === 0 ? '' : 'disabled'}>
+                                                <option value="">-- Select ${escapeHtml(col)} --</option>
+                                            </select>
+                                        </div>
+                                    `).join('')}
+                                    <input type="hidden" name="${field.name}" ${reqAttr}>
+                                </div>`;
+                            } else {
+                                input = `<div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;">Cascade data not configured</div>`;
+                            }
+                            break;
                         case 'rating':
                             input = `<div>${Array(field.max || 5).fill().map((_, i) => `<span onclick="setRating(this,${i+1})" class="rating-star" style="font-size:24px;cursor:pointer;opacity:0.3;color:#ffc107;">★</span>`).join('')}<input type="hidden" name="${field.name}"></div>`;
                             break;
@@ -4221,8 +4403,11 @@
                 updateDraftsCount();
             }, 100);
             
-            // Apply initial logic after form renders
-            setTimeout(() => applyFormLogic(), 100);
+            // Apply initial logic and initialize cascades after form renders
+            setTimeout(() => {
+                applyFormLogic();
+                initCascades();
+            }, 100);
         }
 
         function setupFormSubmit() {
@@ -5018,6 +5203,109 @@
             document.querySelectorAll('.form-page').forEach(p => p.style.display = 'none');
             document.querySelector(`.form-page[data-page="${pageIndex}"]`).style.display = 'block';
         }
+        
+        // Initialize cascade dropdowns
+        function initCascades() {
+            document.querySelectorAll('.cascade-container').forEach(container => {
+                const cascadeId = container.dataset.cascadeId;
+                const field = state.fields.find(f => f.id === cascadeId);
+                if (!field || !field.cascadeData || field.cascadeData.length === 0) return;
+                
+                const columns = field.cascadeColumns || [];
+                if (columns.length === 0) return;
+                
+                // Populate first dropdown with unique values
+                const firstSelect = container.querySelector('[data-level="0"]');
+                if (firstSelect) {
+                    const uniqueValues = [...new Set(field.cascadeData.map(row => row[columns[0]]).filter(Boolean))].sort();
+                    uniqueValues.forEach(val => {
+                        const option = document.createElement('option');
+                        option.value = val;
+                        option.textContent = val;
+                        firstSelect.appendChild(option);
+                    });
+                }
+            });
+        }
+        
+        // Update cascade when selection changes
+        window.updateCascade = function(select) {
+            const container = select.closest('.cascade-container');
+            const cascadeId = container.dataset.cascadeId;
+            const field = state.fields.find(f => f.id === cascadeId);
+            if (!field || !field.cascadeData) return;
+            
+            const columns = field.cascadeColumns || [];
+            const level = parseInt(select.dataset.level);
+            const selectedValue = select.value;
+            
+            // Clear and disable all subsequent dropdowns
+            for (let i = level + 1; i < columns.length; i++) {
+                const nextSelect = container.querySelector(`[data-level="${i}"]`);
+                if (nextSelect) {
+                    nextSelect.innerHTML = `<option value="">-- Select ${columns[i]} --</option>`;
+                    nextSelect.disabled = true;
+                    nextSelect.value = '';
+                }
+            }
+            
+            // Clear hidden input
+            const hiddenInput = container.querySelector('input[type="hidden"]');
+            if (hiddenInput) hiddenInput.value = '';
+            
+            if (!selectedValue) return;
+            
+            // Build filter based on all selections up to current level
+            const filters = {};
+            for (let i = 0; i <= level; i++) {
+                const sel = container.querySelector(`[data-level="${i}"]`);
+                if (sel && sel.value) {
+                    filters[columns[i]] = sel.value;
+                }
+            }
+            
+            // Filter data based on current selections
+            const filteredData = field.cascadeData.filter(row => {
+                return Object.keys(filters).every(col => row[col] === filters[col]);
+            });
+            
+            // If there's a next level, populate it
+            if (level + 1 < columns.length) {
+                const nextSelect = container.querySelector(`[data-level="${level + 1}"]`);
+                if (nextSelect) {
+                    const nextColumn = columns[level + 1];
+                    const uniqueValues = [...new Set(filteredData.map(row => row[nextColumn]).filter(Boolean))].sort();
+                    
+                    uniqueValues.forEach(val => {
+                        const option = document.createElement('option');
+                        option.value = val;
+                        option.textContent = val;
+                        nextSelect.appendChild(option);
+                    });
+                    
+                    nextSelect.disabled = false;
+                }
+            }
+            
+            // If this is the last level or all levels are filled, set the hidden input value
+            const valueColumn = container.dataset.valueColumn;
+            if (level === columns.length - 1 || filteredData.length === 1) {
+                // Check if all levels have values
+                let allFilled = true;
+                for (let i = 0; i < columns.length; i++) {
+                    const sel = container.querySelector(`[data-level="${i}"]`);
+                    if (!sel || !sel.value) {
+                        allFilled = false;
+                        break;
+                    }
+                }
+                
+                if (allFilled && filteredData.length > 0) {
+                    const value = filteredData[0][valueColumn] || filteredData[0][columns[columns.length - 1]];
+                    if (hiddenInput) hiddenInput.value = value;
+                }
+            }
+        };
 
         window.captureGPS = function(btn) {
             const container = btn.parentElement;
