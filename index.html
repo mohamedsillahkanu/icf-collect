@@ -182,8 +182,6 @@
         
         /* Share Modal */
         .qr-container { text-align: center; padding: 20px; }
-        .qr-box { display: inline-block; padding: 25px; background: white; border: 4px solid #004080; border-radius: 12px; }
-        #qrCode { min-width: 200px; min-height: 200px; display: flex; align-items: center; justify-content: center; }
         .qr-url { background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 10px; word-break: break-all; margin-top: 15px; max-height: 80px; overflow-y: auto; font-family: monospace; }
         .qr-actions { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
         
@@ -647,8 +645,7 @@
             </div>
             <div class="modal-body">
                 <div class="qr-container">
-                    <div class="qr-box"><div id="qrCode"></div></div>
-                    <div style="margin-top:15px;font-weight:700;color:#004080;"><span data-icon="smartphone" data-size="14"></span> Scan to open form</div>
+                    <div style="font-weight:700;color:#004080;margin-bottom:10px;"><span data-icon="link" data-size="14"></span> Share Link</div>
                     <div class="qr-url" id="shareUrl"></div>
                     <div class="qr-actions">
                         <button class="modal-btn primary" onclick="copyShareUrl()"><span data-icon="copy" data-size="14"></span> Copy URL</button>
@@ -676,7 +673,6 @@
     <div class="notification" id="notification"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
@@ -2666,19 +2662,38 @@
 
         // Compress cascade data: [{col1: val1, col2: val2}, ...] -> "val1|val2||val3|val4||..."
         function compressCascadeData(data, columns) {
-            if (!data || !Array.isArray(data) || data.length === 0) return null;
-            if (!columns || !Array.isArray(columns) || columns.length === 0) return null;
+            if (!data || !Array.isArray(data) || data.length === 0) {
+                console.log('compressCascadeData: No data or empty array');
+                return null;
+            }
+            if (!columns || !Array.isArray(columns) || columns.length === 0) {
+                console.log('compressCascadeData: No columns or empty array');
+                return null;
+            }
             
             try {
+                console.log(`Compressing ${data.length} rows with ${columns.length} columns:`, columns);
+                
                 // Each row's values joined by |, rows joined by ||
-                return data.map(row => {
-                    if (!row || typeof row !== 'object') return columns.map(() => '').join('|');
-                    return columns.map(col => {
-                        const val = row[col];
-                        if (val === null || val === undefined) return '';
-                        return String(val).replace(/\|/g, '¦');
+                const result = data.map((row, rowIdx) => {
+                    if (!row || typeof row !== 'object') {
+                        console.log(`Row ${rowIdx} is invalid:`, row);
+                        return columns.map(() => '').join('|');
+                    }
+                    return columns.map((col, colIdx) => {
+                        try {
+                            const val = row[col];
+                            if (val === null || val === undefined) return '';
+                            return String(val).replace(/\|/g, '¦');
+                        } catch (e) {
+                            console.error(`Error at row ${rowIdx}, col ${colIdx} (${col}):`, e);
+                            return '';
+                        }
                     }).join('|');
                 }).join('||');
+                
+                console.log(`Compressed to ${result.length} characters`);
+                return result;
             } catch (err) {
                 console.error('Compress cascade error:', err);
                 return null;
@@ -4434,37 +4449,58 @@
                         ac: state.settings.aggregateColumn || '' 
                     },
                     f: state.fields.map((f, idx) => {
-                        console.log(`Mapping field ${idx}: ${f.name}, type: ${f.type}`);
-                        
-                        // Safely get cascade data
-                        let compressedCascade = null;
-                        if (f.cascadeData && Array.isArray(f.cascadeData) && f.cascadeData.length > 0 && 
-                            f.cascadeColumns && Array.isArray(f.cascadeColumns) && f.cascadeColumns.length > 0) {
-                            console.log(`Compressing cascade for field ${idx}: ${f.cascadeData.length} rows, ${f.cascadeColumns.length} columns`);
-                            compressedCascade = compressCascadeData(f.cascadeData, f.cascadeColumns);
+                        try {
+                            console.log(`Mapping field ${idx}: ${f.name}, type: ${f.type}`);
+                            
+                            // Safely get cascade data
+                            let compressedCascade = null;
+                            if (f.cascadeData && Array.isArray(f.cascadeData) && f.cascadeData.length > 0 && 
+                                f.cascadeColumns && Array.isArray(f.cascadeColumns) && f.cascadeColumns.length > 0) {
+                                console.log(`Compressing cascade for field ${idx}: ${f.cascadeData.length} rows, ${f.cascadeColumns.length} columns`);
+                                compressedCascade = compressCascadeData(f.cascadeData, f.cascadeColumns);
+                            }
+                            
+                            // Safely get options
+                            let safeOptions = [];
+                            if (f.options) {
+                                if (Array.isArray(f.options)) {
+                                    safeOptions = f.options;
+                                } else if (typeof f.options === 'string') {
+                                    safeOptions = f.options.split('\n').filter(o => o.trim());
+                                }
+                            }
+                            
+                            return { 
+                                i: f.id || '', 
+                                y: f.type || '', 
+                                l: f.label || '', 
+                                n: f.name || '', 
+                                r: f.required || false, 
+                                o: safeOptions, 
+                                mx: f.max || 5,
+                                // Validation fields - ensure arrays
+                                sl: Array.isArray(f.showLogic) ? f.showLogic : [],
+                                v: Array.isArray(f.validation) ? f.validation : [],
+                                mnl: f.minLength, mxl: f.maxLength, el: f.exactLength,
+                                ed: f.exactDigits, mnd: f.minDigits, mxd: f.maxDigits,
+                                nfd: f.noFutureDates, npd: f.noPastDates, mid: f.minDate, mxd2: f.maxDate,
+                                at: f.autoTime,
+                                cd: f.checkDuplicate || false,
+                                // Cascade linked fields
+                                cg: f.cascadeGroup || null,
+                                cl: typeof f.cascadeLevel === 'number' ? f.cascadeLevel : null,
+                                ccol: f.cascadeColumn || null,
+                                cc: Array.isArray(f.cascadeColumns) && f.cascadeColumns.length > 0 ? f.cascadeColumns : null,
+                                cdt: compressedCascade,
+                                cvc: f.cascadeValueColumn || null,
+                                // Calculation field
+                                frm: f.formula || null
+                            };
+                        } catch (fieldErr) {
+                            console.error(`Error mapping field ${idx} (${f?.name || 'unknown'}):`, fieldErr);
+                            console.error('Field data:', JSON.stringify(f, null, 2));
+                            throw fieldErr;
                         }
-                        
-                        return { 
-                            i: f.id, y: f.type, l: f.label, n: f.name, r: f.required, o: f.options || [], mx: f.max,
-                            // Validation fields
-                            sl: f.showLogic || [],
-                            v: f.validation || [],
-                            mnl: f.minLength, mxl: f.maxLength, el: f.exactLength,
-                            ed: f.exactDigits, mnd: f.minDigits, mxd: f.maxDigits,
-                            nfd: f.noFutureDates, npd: f.noPastDates, mid: f.minDate, mxd2: f.maxDate,
-                            at: f.autoTime,
-                            cd: f.checkDuplicate, // Check for duplicates
-                            // Cascade linked fields
-                            cg: f.cascadeGroup || null, // Cascade group ID
-                            cl: typeof f.cascadeLevel === 'number' ? f.cascadeLevel : null, // Cascade level (0, 1, 2...)
-                            ccol: f.cascadeColumn || null, // This field's column name
-                            cc: f.cascadeColumns && f.cascadeColumns.length > 0 ? f.cascadeColumns : null, // All cascade column names
-                            // Compress cascade data as delimited text
-                            cdt: compressedCascade,
-                            cvc: f.cascadeValueColumn || null, // Value column for cascade field type
-                            // Calculation field
-                            frm: f.formula || null // Calculation formula
-                        };
                     }),
                     d: (state.dhis2?.datasetId || state.dhis2?.programId) ? { 
                         id: state.dhis2.datasetId,
@@ -4485,27 +4521,40 @@
             };
             
                 // Clean up undefined values to reduce URL size
-                formData.f = formData.f.map(f => {
-                    const cleaned = {};
-                    Object.keys(f).forEach(k => {
-                        if (f[k] !== null && f[k] !== undefined && f[k] !== '') {
-                            cleaned[k] = f[k];
-                        }
-                    });
-                    return cleaned;
+                console.log('Cleaning up form data...');
+                formData.f = formData.f.map((f, idx) => {
+                    try {
+                        const cleaned = {};
+                        Object.keys(f).forEach(k => {
+                            if (f[k] !== null && f[k] !== undefined && f[k] !== '') {
+                                cleaned[k] = f[k];
+                            }
+                        });
+                        return cleaned;
+                    } catch (cleanErr) {
+                        console.error(`Error cleaning field ${idx}:`, cleanErr);
+                        throw cleanErr;
+                    }
                 });
                 
+                console.log('Stringifying form data...');
                 const jsonStr = JSON.stringify(formData);
+                console.log('JSON string length:', jsonStr.length);
+                
+                console.log('Compressing with pako...');
                 const compressed = pako.deflate(jsonStr);
+                console.log('Compressed length:', compressed.length);
                 
                 // Convert Uint8Array to base64 safely (handle large arrays)
+                console.log('Converting to base64...');
                 let binary = '';
                 const chunkSize = 8192;
                 for (let i = 0; i < compressed.length; i += chunkSize) {
                     const chunk = compressed.subarray(i, i + chunkSize);
-                    binary += String.fromCharCode.apply(null, chunk);
+                    binary += String.fromCharCode.apply(null, Array.from(chunk));
                 }
                 const encoded = btoa(binary);
+                console.log('Base64 length:', encoded.length);
                 
                 const shareUrl = window.location.origin + window.location.pathname + '?d=' + encodeURIComponent(encoded);
                 
@@ -4524,12 +4573,6 @@
                 
                 const shareUrlEl = document.getElementById('shareUrl');
                 if (shareUrlEl) shareUrlEl.textContent = shareUrl;
-                
-                const qrContainer = document.getElementById('qrCode');
-                if (qrContainer) {
-                    qrContainer.innerHTML = '';
-                    new QRCode(qrContainer, { text: shareUrl, width: 200, height: 200, colorDark: '#004080' });
-                }
                 
                 saveFormToList();
                 const modal = document.getElementById('shareModal');
