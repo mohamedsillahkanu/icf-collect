@@ -192,6 +192,7 @@
         .notification.show { display: block; }
         .notification.error { background: #dc3545; }
         .notification.info { background: #17a2b8; }
+        .notification.warning { background: #ffc107; color: #333; }
         
         /* Viewer */
         .viewer-container { display: none; min-height: 100vh; background: #e9ecef; }
@@ -2663,10 +2664,31 @@
             document.getElementById(id).classList.remove('show');
         }
 
+        // Compress cascade data: [{col1: val1, col2: val2}, ...] -> "val1|val2||val3|val4||..."
+        function compressCascadeData(data, columns) {
+            if (!data || !columns || data.length === 0) return null;
+            // Each row's values joined by |, rows joined by ||
+            return data.map(row => columns.map(col => (row[col] || '').replace(/\|/g, '¦')).join('|')).join('||');
+        }
+        
+        // Decompress cascade data: "val1|val2||val3|val4||..." -> [{col1: val1, col2: val2}, ...]
+        function decompressCascadeData(compressed, columns) {
+            if (!compressed || !columns || columns.length === 0) return [];
+            const rows = compressed.split('||');
+            return rows.map(row => {
+                const values = row.split('|');
+                const obj = {};
+                columns.forEach((col, i) => {
+                    obj[col] = (values[i] || '').replace(/¦/g, '|');
+                });
+                return obj;
+            }).filter(row => Object.values(row).some(v => v)); // Filter empty rows
+        }
+
         function notify(message, type = 'success') {
             const el = document.getElementById('notification');
             el.textContent = message;
-            el.className = 'notification show' + (type === 'error' ? ' error' : type === 'info' ? ' info' : '');
+            el.className = 'notification show' + (type === 'error' ? ' error' : type === 'info' ? ' info' : type === 'warning' ? ' warning' : '');
             setTimeout(() => el.classList.remove('show'), 4000);
         }
 
@@ -4288,6 +4310,60 @@
                 console.error('Cloud delete error:', err);
             }
         }
+        
+        // Save large cascade data to Google Sheets cloud storage
+        async function saveCascadeDataToCloud(cascadeId, cascadeData, columns) {
+            if (!state.sheets.scriptUrl) {
+                throw new Error('No script URL configured');
+            }
+            
+            try {
+                const response = await fetch(state.sheets.scriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'saveCascadeData',
+                        cascadeId: cascadeId,
+                        columns: JSON.stringify(columns),
+                        data: JSON.stringify(cascadeData)
+                    })
+                });
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to save cascade data');
+                }
+                console.log('Cascade data saved to cloud:', cascadeId);
+                return true;
+            } catch (err) {
+                console.error('Cascade save error:', err);
+                throw err;
+            }
+        }
+        
+        // Load cascade data from Google Sheets cloud storage
+        async function loadCascadeDataFromCloud(cascadeId) {
+            if (!state.sheets.scriptUrl) {
+                return null;
+            }
+            
+            try {
+                const response = await fetch(state.sheets.scriptUrl + '?' + new URLSearchParams({
+                    action: 'getCascadeData',
+                    cascadeId: cascadeId
+                }));
+                const result = await response.json();
+                if (result.success && result.data) {
+                    console.log('Cascade data loaded from cloud:', cascadeId, result.data.length, 'rows');
+                    return {
+                        data: result.data,
+                        columns: result.columns
+                    };
+                }
+            } catch (err) {
+                console.error('Cascade load error:', err);
+            }
+            return null;
+        }
 
         function previewForm() {
             if (state.fields.length === 0) { notify('Add fields!', 'error'); return; }
@@ -4306,7 +4382,7 @@
             document.querySelector('.footer').style.display = '';
         }
 
-        function shareForm() {
+        async function shareForm() {
             if (state.fields.length === 0) { notify('Add fields!', 'error'); return; }
             
             // Ensure settings exist
@@ -4335,7 +4411,8 @@
                     cl: typeof f.cascadeLevel === 'number' ? f.cascadeLevel : null, // Cascade level (0, 1, 2...)
                     ccol: f.cascadeColumn || null, // This field's column name
                     cc: f.cascadeColumns && f.cascadeColumns.length > 0 ? f.cascadeColumns : null, // All cascade column names
-                    cdt: f.cascadeData && f.cascadeData.length > 0 ? f.cascadeData : null, // Cascade data rows
+                    // Compress cascade data as delimited text: col1|col2|col3||row1val1|row1val2|row1val3||row2val1...
+                    cdt: f.cascadeData && f.cascadeData.length > 0 ? compressCascadeData(f.cascadeData, f.cascadeColumns) : null,
                     cvc: f.cascadeValueColumn || null, // Value column for cascade field type
                     // Calculation field
                     frm: f.formula || null // Calculation formula
@@ -4372,8 +4449,30 @@
                 
                 const jsonStr = JSON.stringify(formData);
                 const compressed = pako.deflate(jsonStr);
-                const encoded = btoa(String.fromCharCode.apply(null, compressed));
+                
+                // Convert Uint8Array to base64 safely (handle large arrays)
+                let binary = '';
+                const chunkSize = 8192;
+                for (let i = 0; i < compressed.length; i += chunkSize) {
+                    const chunk = compressed.subarray(i, i + chunkSize);
+                    binary += String.fromCharCode.apply(null, chunk);
+                }
+                const encoded = btoa(binary);
+                
                 const shareUrl = window.location.origin + window.location.pathname + '?d=' + encodeURIComponent(encoded);
+                
+                // Check URL length and show info
+                const urlLen = shareUrl.length;
+                console.log('Share URL length:', urlLen, 'characters');
+                
+                if (urlLen > 100000) {
+                    notify(`URL too large (${Math.round(urlLen/1000)}KB). Reduce cascade data rows.`, 'error');
+                    return;
+                } else if (urlLen > 50000) {
+                    notify(`Large URL (${Math.round(urlLen/1000)}KB). May not work in all browsers.`, 'warning');
+                } else if (urlLen > 8000) {
+                    notify(`URL: ${Math.round(urlLen/1000)}KB - Works in modern browsers`, 'info');
+                }
                 
                 const shareUrlEl = document.getElementById('shareUrl');
                 if (shareUrlEl) shareUrlEl.textContent = shareUrl;
@@ -4541,33 +4640,47 @@
         }
 
         // ==================== FORM VIEWER ====================
-        function renderSharedForm(data) {
+        async function renderSharedForm(data) {
             document.getElementById('authContainer').style.display = 'none';
             document.getElementById('mainContainer').classList.remove('show');
             document.querySelector('.header').style.display = 'none';
             document.querySelector('.footer').style.display = 'none';
             
             state.settings = { title: data.s?.t || 'Form', logo: data.s?.l || state.settings.logo, aggregateColumn: data.s?.ac || '' };
-            state.fields = (data.f || []).map(f => ({
-                id: f.i, type: f.y, label: f.l, name: f.n, required: f.r || false, options: f.o || [], max: f.mx || 5,
-                // Validation fields
-                showLogic: f.sl || [],
-                validation: f.v || [],
-                minLength: f.mnl, maxLength: f.mxl, exactLength: f.el,
-                exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
-                noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
-                autoTime: f.at !== false,
-                checkDuplicate: f.cd || false,
-                // Cascade linked fields
-                cascadeGroup: f.cg || null,
-                cascadeLevel: typeof f.cl === 'number' ? f.cl : null,
-                cascadeColumn: f.ccol || null,
-                cascadeColumns: f.cc || [],
-                cascadeData: f.cdt || [],
-                cascadeValueColumn: f.cvc || null,
-                // Calculation field
-                formula: f.frm || ''
-            }));
+            state.fields = (data.f || []).map(f => {
+                // Decompress cascade data if it's a string (compressed format)
+                let cascadeData = [];
+                if (f.cdt) {
+                    if (typeof f.cdt === 'string') {
+                        // Compressed format - decompress
+                        cascadeData = decompressCascadeData(f.cdt, f.cc || []);
+                    } else if (Array.isArray(f.cdt)) {
+                        // Already an array (old format)
+                        cascadeData = f.cdt;
+                    }
+                }
+                
+                return {
+                    id: f.i, type: f.y, label: f.l, name: f.n, required: f.r || false, options: f.o || [], max: f.mx || 5,
+                    // Validation fields
+                    showLogic: f.sl || [],
+                    validation: f.v || [],
+                    minLength: f.mnl, maxLength: f.mxl, exactLength: f.el,
+                    exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
+                    noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
+                    autoTime: f.at !== false,
+                    checkDuplicate: f.cd || false,
+                    // Cascade linked fields
+                    cascadeGroup: f.cg || null,
+                    cascadeLevel: typeof f.cl === 'number' ? f.cl : null,
+                    cascadeColumn: f.ccol || null,
+                    cascadeColumns: f.cc || [],
+                    cascadeData: cascadeData,
+                    cascadeValueColumn: f.cvc || null,
+                    // Calculation field
+                    formula: f.frm || ''
+                };
+            });
             
             // Load DHIS2 dataset/program info
             if (data.d) {
