@@ -3066,7 +3066,7 @@
                         ${f.required ? '<span class="field-badge required">Required</span>' : ''}
                         ${isDhis2Field ? '<span class="field-badge dhis2">DHIS2</span>' : ''}
                         ${isNumeric ? '<span class="field-badge aggregate">SUM</span>' : ''}
-                        ${isCascade ? `<span class="field-badge cascade">Cascade L${f.cascadeLevel + 1}</span>` : ''}
+                        ${isCascade ? `<span class="field-badge cascade">Cascade L${(f.cascadeLevel || 0) + 1}</span>` : ''}
                         ${isCalc ? '<span class="field-badge calc">CALC</span>' : ''}
                     </div>
                 </div>`;
@@ -4179,13 +4179,114 @@
                 settings: state.settings,
                 collectedData: state.collectedData,
                 dhis2: {
-                    datasetId: state.dhis2.datasetId,
-                    dataElements: state.dhis2.dataElements
+                    datasetId: state.dhis2?.datasetId,
+                    programId: state.dhis2?.programId,
+                    dataElements: state.dhis2?.dataElements
                 }
             };
             if (existingIndex >= 0) forms[existingIndex] = formEntry;
             else forms.push(formEntry);
             localStorage.setItem('icfCollectForms', JSON.stringify(forms));
+            
+            // Also save to cloud if connected
+            saveFormToCloud(formEntry);
+        }
+        
+        // Save form to Google Sheets cloud storage
+        async function saveFormToCloud(formEntry) {
+            if (!state.sheets.scriptUrl || !state.user) return;
+            
+            try {
+                const response = await fetch(state.sheets.scriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'saveForm',
+                        email: state.user.email,
+                        formId: formEntry.id,
+                        formData: JSON.stringify(formEntry)
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    console.log('Form saved to cloud');
+                }
+            } catch (err) {
+                console.error('Cloud save error:', err);
+            }
+        }
+        
+        // Load all forms from Google Sheets cloud storage
+        async function loadFormsFromCloud() {
+            if (!state.sheets.scriptUrl || !state.user) return [];
+            
+            try {
+                const response = await fetch(state.sheets.scriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'loadForms',
+                        email: state.user.email
+                    })
+                });
+                const result = await response.json();
+                if (result.success && result.forms) {
+                    return result.forms;
+                }
+            } catch (err) {
+                console.error('Cloud load error:', err);
+            }
+            return [];
+        }
+        
+        // Sync forms between local storage and cloud
+        async function syncForms() {
+            if (!state.user) return;
+            
+            const localForms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const cloudForms = await loadFormsFromCloud();
+            
+            // Merge: use most recently updated version
+            const mergedForms = {};
+            
+            localForms.forEach(f => {
+                mergedForms[f.id] = f;
+            });
+            
+            cloudForms.forEach(f => {
+                if (!mergedForms[f.id] || new Date(f.updatedAt) > new Date(mergedForms[f.id].updatedAt)) {
+                    mergedForms[f.id] = f;
+                }
+            });
+            
+            const finalForms = Object.values(mergedForms);
+            localStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
+            
+            // Push all to cloud
+            for (const form of finalForms) {
+                await saveFormToCloud(form);
+            }
+            
+            return finalForms;
+        }
+        
+        // Delete form from cloud
+        async function deleteFormFromCloud(formId) {
+            if (!state.sheets.scriptUrl || !state.user) return;
+            
+            try {
+                await fetch(state.sheets.scriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action: 'deleteForm',
+                        email: state.user.email,
+                        formId: formId
+                    })
+                });
+            } catch (err) {
+                console.error('Cloud delete error:', err);
+            }
         }
 
         function previewForm() {
@@ -4231,10 +4332,11 @@
                     cd: f.checkDuplicate, // Check for duplicates
                     // Cascade linked fields
                     cg: f.cascadeGroup || null, // Cascade group ID
-                    cl: f.cascadeLevel, // Cascade level (0, 1, 2...)
+                    cl: typeof f.cascadeLevel === 'number' ? f.cascadeLevel : null, // Cascade level (0, 1, 2...)
                     ccol: f.cascadeColumn || null, // This field's column name
-                    cc: f.cascadeColumns || null, // All cascade column names (on first field only)
-                    cdt: f.cascadeData || null, // Cascade data rows (on first field only)
+                    cc: f.cascadeColumns && f.cascadeColumns.length > 0 ? f.cascadeColumns : null, // All cascade column names
+                    cdt: f.cascadeData && f.cascadeData.length > 0 ? f.cascadeData : null, // Cascade data rows
+                    cvc: f.cascadeValueColumn || null, // Value column for cascade field type
                     // Calculation field
                     frm: f.formula || null // Calculation formula
                 })),
@@ -4298,12 +4400,36 @@
         }
 
         // ==================== HOME ====================
-        function showHome() {
+        async function showHome() {
+            // Show loading state
+            document.getElementById('homeContainer').innerHTML = `
+                <div style="max-width:600px;margin:0 auto;padding:20px;text-align:center;">
+                    <p style="font-size:48px;margin-bottom:12px;"><span class="inline-icon">${getIcon('loader', 48)}</span></p>
+                    <p style="color:#666;">Loading forms...</p>
+                </div>
+            `;
+            document.querySelector('.header').style.display = 'none';
+            document.getElementById('mainContainer').classList.remove('show');
+            document.querySelector('.footer').style.display = 'none';
+            document.getElementById('homeContainer').classList.add('show');
+            
+            // Try to sync with cloud if user is logged in
+            if (state.user) {
+                try {
+                    await syncForms();
+                } catch (err) {
+                    console.error('Sync error:', err);
+                }
+            }
+            
             const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const isLoggedIn = !!state.user;
+            
             let formsHtml = forms.length === 0 ? `
                 <div style="text-align:center;padding:60px;color:#868e96;">
                     <p style="font-size:64px;margin-bottom:12px;"><span class="inline-icon">${getIcon('inbox', 64)}</span></p>
                     <h3 style="color:#004080;">No Forms Yet</h3>
+                    <p style="font-size:12px;margin-top:10px;">Create your first data collection form</p>
                     <button onclick="closeHome()" style="padding:15px 30px;background:#28a745;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:20px;font-weight:bold;"><span class="inline-icon">${getIcon('plus', 14)}</span> Create Form</button>
                 </div>
             ` : forms.map((f, i) => `
@@ -4328,17 +4454,45 @@
                 <div style="max-width:600px;margin:0 auto;padding:20px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                         <h2 style="color:#004080;"><span class="inline-icon">${getIcon('home', 20)}</span> My Forms</h2>
-                        <button onclick="closeHome()" style="padding:10px 20px;background:#28a745;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;"><span class="inline-icon">${getIcon('plus', 14)}</span> New</button>
+                        <div style="display:flex;gap:8px;">
+                            ${isLoggedIn ? `
+                                <button onclick="syncFormsManually()" style="padding:10px 15px;background:#17a2b8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;" title="Sync with Cloud">
+                                    <span class="inline-icon">${getIcon('refresh-cw', 14)}</span>
+                                </button>
+                            ` : ''}
+                            <button onclick="closeHome()" style="padding:10px 20px;background:#28a745;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;"><span class="inline-icon">${getIcon('plus', 14)}</span> New</button>
+                        </div>
                     </div>
+                    
+                    ${isLoggedIn ? `
+                        <div style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:10px 15px;margin-bottom:15px;display:flex;align-items:center;gap:10px;">
+                            <span class="inline-icon" style="color:#155724;">${getIcon('cloud', 16)}</span>
+                            <span style="font-size:12px;color:#155724;">Signed in as <strong>${escapeHtml(state.user.email)}</strong> - Forms sync across devices</span>
+                        </div>
+                    ` : `
+                        <div style="background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;padding:10px 15px;margin-bottom:15px;display:flex;align-items:center;gap:10px;">
+                            <span class="inline-icon" style="color:#856404;">${getIcon('alert-triangle', 16)}</span>
+                            <span style="font-size:12px;color:#856404;">Forms are stored locally. Sign in to sync across devices.</span>
+                        </div>
+                    `}
+                    
                     ${formsHtml}
                 </div>
             `;
             
-            document.querySelector('.header').style.display = 'none';
-            document.getElementById('mainContainer').classList.remove('show');
-            document.querySelector('.footer').style.display = 'none';
-            document.getElementById('homeContainer').classList.add('show');
             initIcons();
+        }
+        
+        // Manual sync button handler
+        async function syncFormsManually() {
+            notify('Syncing forms...', 'info');
+            try {
+                await syncForms();
+                notify('Forms synced!', 'success');
+                showHome();
+            } catch (err) {
+                notify('Sync failed: ' + err.message, 'error');
+            }
         }
 
         function closeHome() {
@@ -4374,7 +4528,12 @@
 
         function deleteForm(index) {
             const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
-            if (!confirm(`Delete "${forms[index]?.title}"?`)) return;
+            const form = forms[index];
+            if (!form || !confirm(`Delete "${form.title}"?`)) return;
+            
+            // Delete from cloud
+            deleteFormFromCloud(form.id);
+            
             forms.splice(index, 1);
             localStorage.setItem('icfCollectForms', JSON.stringify(forms));
             showHome();
@@ -4401,10 +4560,11 @@
                 checkDuplicate: f.cd || false,
                 // Cascade linked fields
                 cascadeGroup: f.cg || null,
-                cascadeLevel: f.cl,
+                cascadeLevel: typeof f.cl === 'number' ? f.cl : null,
                 cascadeColumn: f.ccol || null,
                 cascadeColumns: f.cc || [],
                 cascadeData: f.cdt || [],
+                cascadeValueColumn: f.cvc || null,
                 // Calculation field
                 formula: f.frm || ''
             }));
@@ -4521,11 +4681,12 @@
                         case 'select':
                             if (field.cascadeGroup) {
                                 // Cascade-linked select field
-                                const isFirst = field.cascadeLevel === 0;
+                                const isFirst = (field.cascadeLevel || 0) === 0;
+                                const cascadeLevel = field.cascadeLevel || 0;
                                 input = `<select name="${field.name}" class="viewer-input cascade-field" 
                                     data-cascade-group="${field.cascadeGroup}" 
-                                    data-cascade-level="${field.cascadeLevel}"
-                                    data-cascade-column="${field.cascadeColumn}"
+                                    data-cascade-level="${cascadeLevel}"
+                                    data-cascade-column="${field.cascadeColumn || ''}"
                                     onchange="handleCascadeChange(this)"
                                     ${isFirst ? '' : 'disabled'} ${reqAttr}>
                                     <option value="">-- Select ${escapeHtml(field.label)} --</option>
@@ -5547,14 +5708,15 @@
             });
             
             Object.keys(cascadeGroups).forEach(groupId => {
-                const fields = cascadeGroups[groupId].sort((a, b) => a.cascadeLevel - b.cascadeLevel);
+                const fields = cascadeGroups[groupId].sort((a, b) => (a.cascadeLevel || 0) - (b.cascadeLevel || 0));
                 const firstField = fields[0];
                 
-                if (!firstField || !firstField.cascadeData) return;
+                if (!firstField || !firstField.cascadeData || firstField.cascadeData.length === 0) return;
                 
                 const firstSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="0"]`);
                 if (firstSelect && firstSelect.options.length <= 1) {
                     const column = firstField.cascadeColumn;
+                    if (!column) return;
                     const uniqueValues = [...new Set(firstField.cascadeData.map(row => row[column]).filter(Boolean))].sort();
                     
                     uniqueValues.forEach(val => {
@@ -5631,14 +5793,16 @@
         // Handle linked cascade field change (separate select fields method)
         window.handleCascadeChange = function(select) {
             const groupId = select.dataset.cascadeGroup;
-            const level = parseInt(select.dataset.cascadeLevel);
+            const level = parseInt(select.dataset.cascadeLevel) || 0;
             const selectedValue = select.value;
             
+            if (!groupId) return;
+            
             // Find all fields in this cascade group
-            const groupFields = state.fields.filter(f => f.cascadeGroup === groupId).sort((a, b) => a.cascadeLevel - b.cascadeLevel);
+            const groupFields = state.fields.filter(f => f.cascadeGroup === groupId).sort((a, b) => (a.cascadeLevel || 0) - (b.cascadeLevel || 0));
             const firstField = groupFields[0];
             
-            if (!firstField || !firstField.cascadeData) return;
+            if (!firstField || !firstField.cascadeData || firstField.cascadeData.length === 0) return;
             
             const cascadeData = firstField.cascadeData;
             
@@ -5646,7 +5810,7 @@
             for (let i = level + 1; i < groupFields.length; i++) {
                 const nextSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${i}"]`);
                 if (nextSelect) {
-                    const col = groupFields[i].cascadeColumn;
+                    const col = groupFields[i]?.cascadeColumn || '';
                     nextSelect.innerHTML = `<option value="">-- Select ${col} --</option>`;
                     nextSelect.disabled = true;
                     nextSelect.value = '';
@@ -5659,8 +5823,9 @@
             const filters = {};
             for (let i = 0; i <= level; i++) {
                 const sel = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${i}"]`);
-                if (sel && sel.value) {
-                    filters[groupFields[i].cascadeColumn] = sel.value;
+                const col = groupFields[i]?.cascadeColumn;
+                if (sel && sel.value && col) {
+                    filters[col] = sel.value;
                 }
             }
             
@@ -5673,17 +5838,18 @@
             if (level + 1 < groupFields.length) {
                 const nextField = groupFields[level + 1];
                 const nextSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${level + 1}"]`);
-                if (nextSelect) {
+                if (nextSelect && nextField) {
                     const nextColumn = nextField.cascadeColumn;
-                    const uniqueValues = [...new Set(filteredData.map(row => row[nextColumn]).filter(Boolean))].sort();
-                    
-                    uniqueValues.forEach(val => {
-                        const option = document.createElement('option');
-                        option.value = val;
-                        option.textContent = val;
-                        nextSelect.appendChild(option);
-                    });
-                    
+                    if (nextColumn) {
+                        const uniqueValues = [...new Set(filteredData.map(row => row[nextColumn]).filter(Boolean))].sort();
+                        
+                        uniqueValues.forEach(val => {
+                            const option = document.createElement('option');
+                            option.value = val;
+                            option.textContent = val;
+                            nextSelect.appendChild(option);
+                        });
+                    }
                     nextSelect.disabled = false;
                 }
             }
