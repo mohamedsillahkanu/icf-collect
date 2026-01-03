@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">   
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -4353,7 +4353,7 @@
         }
         
         // Save large cascade data to Google Sheets cloud storage
-        async function saveCascadeDataToCloud(cascadeId, cascadeData, columns) {
+        async function saveCascadeDataToCloud(cascadeId, compressedData, columns) {
             if (!state.sheets.scriptUrl) {
                 throw new Error('No script URL configured');
             }
@@ -4366,7 +4366,7 @@
                         action: 'saveCascadeData',
                         cascadeId: cascadeId,
                         columns: JSON.stringify(columns),
-                        data: JSON.stringify(cascadeData)
+                        data: compressedData // Already compressed text
                     })
                 });
                 const result = await response.json();
@@ -4382,8 +4382,22 @@
         }
         
         // Load cascade data from Google Sheets cloud storage
-        async function loadCascadeDataFromCloud(cascadeId) {
+        async function loadCascadeDataFromCloud(cascadeId, columns) {
+            // First check localStorage cache
+            const cacheKey = 'cascade_cache_' + cascadeId;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const cachedData = JSON.parse(cached);
+                    console.log('Cascade data loaded from cache:', cascadeId, cachedData.data.length, 'rows');
+                    return cachedData;
+                } catch (e) {
+                    localStorage.removeItem(cacheKey);
+                }
+            }
+            
             if (!state.sheets.scriptUrl) {
+                console.log('No script URL, cannot load cascade data');
                 return null;
             }
             
@@ -4394,11 +4408,21 @@
                 }));
                 const result = await response.json();
                 if (result.success && result.data) {
-                    console.log('Cascade data loaded from cloud:', cascadeId, result.data.length, 'rows');
-                    return {
-                        data: result.data,
-                        columns: result.columns
-                    };
+                    // Decompress the data
+                    const cols = result.columns || columns || [];
+                    const decompressed = decompressCascadeData(result.data, cols);
+                    console.log('Cascade data loaded from cloud:', cascadeId, decompressed.length, 'rows');
+                    
+                    // Cache in localStorage for offline use
+                    const cacheData = { data: decompressed, columns: cols };
+                    try {
+                        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                        console.log('Cascade data cached locally');
+                    } catch (e) {
+                        console.log('Could not cache cascade data (localStorage full?)');
+                    }
+                    
+                    return cacheData;
                 }
             } catch (err) {
                 console.error('Cascade load error:', err);
@@ -4452,12 +4476,15 @@
                         try {
                             console.log(`Mapping field ${idx}: ${f.name}, type: ${f.type}`);
                             
-                            // Safely get cascade data
+                            // For cascade data, save to cloud and use reference ID
                             let compressedCascade = null;
+                            let cascadeRef = null;
                             if (f.cascadeData && Array.isArray(f.cascadeData) && f.cascadeData.length > 0 && 
                                 f.cascadeColumns && Array.isArray(f.cascadeColumns) && f.cascadeColumns.length > 0) {
-                                console.log(`Compressing cascade for field ${idx}: ${f.cascadeData.length} rows, ${f.cascadeColumns.length} columns`);
-                                compressedCascade = compressCascadeData(f.cascadeData, f.cascadeColumns);
+                                // Generate a unique reference ID for this cascade data
+                                cascadeRef = f.cascadeDataRef || ('csc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6));
+                                f.cascadeDataRef = cascadeRef; // Store for future use
+                                console.log(`Cascade field ${idx}: ${f.cascadeData.length} rows will be saved with ref: ${cascadeRef}`);
                             }
                             
                             // Safely get options
@@ -4491,7 +4518,7 @@
                                 cl: typeof f.cascadeLevel === 'number' ? f.cascadeLevel : null,
                                 ccol: f.cascadeColumn || null,
                                 cc: Array.isArray(f.cascadeColumns) && f.cascadeColumns.length > 0 ? f.cascadeColumns : null,
-                                cdt: compressedCascade,
+                                cref: cascadeRef, // Reference ID to load cascade data from cloud
                                 cvc: f.cascadeValueColumn || null,
                                 // Calculation field
                                 frm: f.formula || null
@@ -4504,8 +4531,8 @@
                     }),
                     d: (state.dhis2?.datasetId || state.dhis2?.programId) ? { 
                         id: state.dhis2.datasetId,
-                        pid: state.dhis2.programId,
-                        de: state.dhis2.dataElements 
+                        pid: state.dhis2.programId
+                        // Note: dataElements not included - too large for URL, will be fetched from DHIS2
                     } : null,
                 // Include DHIS2 credentials for sync
                 h: state.dhis2?.url ? {
@@ -4519,6 +4546,30 @@
                     oc: state.dhis2.orgUnitColumn
                 } : null
             };
+            
+                // Save cascade data to Google Sheets
+                const cascadeFieldsToSave = state.fields.filter(f => 
+                    f.cascadeData && f.cascadeData.length > 0 && 
+                    f.cascadeColumns && f.cascadeColumns.length > 0 &&
+                    f.cascadeDataRef
+                );
+                
+                if (cascadeFieldsToSave.length > 0) {
+                    console.log(`Saving ${cascadeFieldsToSave.length} cascade datasets to cloud...`);
+                    notify('Saving cascade data to cloud...', 'info');
+                    
+                    for (const field of cascadeFieldsToSave) {
+                        try {
+                            const compressed = compressCascadeData(field.cascadeData, field.cascadeColumns);
+                            await saveCascadeDataToCloud(field.cascadeDataRef, compressed, field.cascadeColumns);
+                            console.log(`Saved cascade data: ${field.cascadeDataRef}`);
+                        } catch (err) {
+                            console.error('Failed to save cascade data:', err);
+                            notify('Error saving cascade data: ' + err.message, 'error');
+                            return;
+                        }
+                    }
+                }
             
                 // Clean up undefined values to reduce URL size
                 console.log('Cleaning up form data...');
@@ -4538,8 +4589,24 @@
                 });
                 
                 console.log('Stringifying form data...');
+                
+                // Debug: log sizes
+                console.log('Settings size:', JSON.stringify(formData.s).length);
+                console.log('DHIS2 d size:', JSON.stringify(formData.d).length);
+                console.log('DHIS2 h size:', JSON.stringify(formData.h).length);
+                console.log('Fields count:', formData.f.length);
+                
+                // Debug: log field sizes to see what's large
+                formData.f.forEach((field, idx) => {
+                    const fieldStr = JSON.stringify(field);
+                    console.log(`Field ${idx} (${field.n}): ${fieldStr.length} chars`);
+                    if (fieldStr.length > 500) {
+                        console.log('Large field keys:', Object.keys(field).filter(k => JSON.stringify(field[k]).length > 100));
+                    }
+                });
+                
                 const jsonStr = JSON.stringify(formData);
-                console.log('JSON string length:', jsonStr.length);
+                console.log('Total JSON string length:', jsonStr.length);
                 
                 console.log('Compressing with pako...');
                 const compressed = pako.deflate(jsonStr);
@@ -4737,41 +4804,53 @@
             document.querySelector('.header').style.display = 'none';
             document.querySelector('.footer').style.display = 'none';
             
+            // Show loading indicator
+            document.getElementById('viewerContainer').classList.add('show');
+            document.getElementById('viewerContainer').innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;">
+                    <div style="font-size:48px;margin-bottom:20px;">⏳</div>
+                    <div style="color:#004080;font-weight:600;">Loading form...</div>
+                </div>
+            `;
+            
             state.settings = { title: data.s?.t || 'Form', logo: data.s?.l || state.settings.logo, aggregateColumn: data.s?.ac || '' };
-            state.fields = (data.f || []).map(f => {
-                // Decompress cascade data if it's a string (compressed format)
-                let cascadeData = [];
-                if (f.cdt) {
-                    if (typeof f.cdt === 'string') {
-                        // Compressed format - decompress
-                        cascadeData = decompressCascadeData(f.cdt, f.cc || []);
-                    } else if (Array.isArray(f.cdt)) {
-                        // Already an array (old format)
-                        cascadeData = f.cdt;
+            
+            // First pass: create fields with placeholder for cascade data
+            state.fields = (data.f || []).map(f => ({
+                id: f.i, type: f.y, label: f.l, name: f.n, required: f.r || false, options: f.o || [], max: f.mx || 5,
+                showLogic: f.sl || [],
+                validation: f.v || [],
+                minLength: f.mnl, maxLength: f.mxl, exactLength: f.el,
+                exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
+                noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
+                autoTime: f.at !== false,
+                checkDuplicate: f.cd || false,
+                cascadeGroup: f.cg || null,
+                cascadeLevel: typeof f.cl === 'number' ? f.cl : null,
+                cascadeColumn: f.ccol || null,
+                cascadeColumns: f.cc || [],
+                cascadeData: [], // Will be loaded
+                cascadeDataRef: f.cref || null, // Reference ID for cloud data
+                cascadeValueColumn: f.cvc || null,
+                formula: f.frm || ''
+            }));
+            
+            // Load cascade data from cloud for fields with reference IDs
+            const cascadeFields = state.fields.filter(f => f.cascadeDataRef && f.cascadeColumns && f.cascadeColumns.length > 0);
+            if (cascadeFields.length > 0) {
+                console.log(`Loading cascade data for ${cascadeFields.length} fields...`);
+                for (const field of cascadeFields) {
+                    try {
+                        const cloudData = await loadCascadeDataFromCloud(field.cascadeDataRef, field.cascadeColumns);
+                        if (cloudData && cloudData.data) {
+                            field.cascadeData = cloudData.data;
+                            console.log(`Loaded cascade data for ${field.name}: ${field.cascadeData.length} rows`);
+                        }
+                    } catch (err) {
+                        console.error('Failed to load cascade data for', field.name, err);
                     }
                 }
-                
-                return {
-                    id: f.i, type: f.y, label: f.l, name: f.n, required: f.r || false, options: f.o || [], max: f.mx || 5,
-                    // Validation fields
-                    showLogic: f.sl || [],
-                    validation: f.v || [],
-                    minLength: f.mnl, maxLength: f.mxl, exactLength: f.el,
-                    exactDigits: f.ed, minDigits: f.mnd, maxDigits: f.mxd,
-                    noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
-                    autoTime: f.at !== false,
-                    checkDuplicate: f.cd || false,
-                    // Cascade linked fields
-                    cascadeGroup: f.cg || null,
-                    cascadeLevel: typeof f.cl === 'number' ? f.cl : null,
-                    cascadeColumn: f.ccol || null,
-                    cascadeColumns: f.cc || [],
-                    cascadeData: cascadeData,
-                    cascadeValueColumn: f.cvc || null,
-                    // Calculation field
-                    formula: f.frm || ''
-                };
-            });
+            }
             
             // Load DHIS2 dataset/program info
             if (data.d) {
@@ -4798,7 +4877,6 @@
                 }
             }
             
-            document.getElementById('viewerContainer').classList.add('show');
             renderFormViewer();
         }
 
