@@ -125,6 +125,13 @@
         .validation-rule { background: #fff3cd; border: 2px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
         .validation-msg { font-size: 10px; color: #856404; margin-top: 5px; }
         .field-hidden { display: none !important; }
+        .section-hidden { display: none !important; }
+        
+        /* Calculation Button Styles */
+        .calc-op-btn { background: #004080; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; min-width: 36px; }
+        .calc-op-btn:hover { background: #002855; }
+        .calc-num-btn { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .calc-num-btn:hover { background: #545b62; }
         .field-error input, .field-error select, .field-error textarea { border-color: #dc3545 !important; }
         .field-error-msg { color: #dc3545; font-size: 10px; margin-top: 4px; }
         
@@ -3129,36 +3136,65 @@
                 const numberFields = state.fields.filter(f => f.type === 'number' && f.id !== field.id);
                 html += `
                     <div class="prop-section">
-                        <div class="prop-section-title"><span data-icon="calculator" data-size="12"></span> Formula</div>
-                        <p style="font-size:10px;color:#666;margin-bottom:10px;">Use field names in {brackets}. Operators: + - * / ( )</p>
+                        <div class="prop-section-title"><span data-icon="calculator" data-size="12"></span> Formula Builder</div>
                         
                         <div class="property-group">
                             <label class="property-label">Formula</label>
-                            <input type="text" class="property-input" id="propFormula" value="${escapeHtml(field.formula || '')}" placeholder="e.g., {field1} + {field2} * 2">
+                            <input type="text" class="property-input" id="propFormula" value="${escapeHtml(field.formula || '')}" placeholder="Click fields and operators below">
                         </div>
                         
+                        <!-- Operator Buttons -->
+                        <div style="margin:10px 0;">
+                            <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Operators:</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                <button type="button" onclick="insertFormulaText(' + ')" class="calc-op-btn">+</button>
+                                <button type="button" onclick="insertFormulaText(' - ')" class="calc-op-btn">−</button>
+                                <button type="button" onclick="insertFormulaText(' * ')" class="calc-op-btn">×</button>
+                                <button type="button" onclick="insertFormulaText(' / ')" class="calc-op-btn">÷</button>
+                                <button type="button" onclick="insertFormulaText('(')" class="calc-op-btn">(</button>
+                                <button type="button" onclick="insertFormulaText(')')" class="calc-op-btn">)</button>
+                                <button type="button" onclick="insertFormulaText(' % ')" class="calc-op-btn">%</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Number Fields -->
                         ${numberFields.length > 0 ? `
-                            <div style="background:#f8f9fa;padding:10px;border-radius:6px;margin-top:10px;">
-                                <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Available Number Fields:</div>
-                                <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                                    ${numberFields.map(f => `<code onclick="insertFieldRef('${f.name}')" style="background:#e9ecef;padding:2px 6px;border-radius:4px;font-size:10px;cursor:pointer;border:1px solid #dee2e6;">{${f.name}}</code>`).join('')}
+                            <div style="background:#d4edda;padding:10px;border-radius:6px;margin-top:10px;border:1px solid #c3e6cb;">
+                                <div style="font-size:10px;font-weight:700;color:#155724;margin-bottom:8px;"><span data-icon="hash" data-size="10"></span> Click to Insert Number Fields:</div>
+                                <div style="display:flex;flex-direction:column;gap:6px;">
+                                    ${numberFields.map(f => `
+                                        <div onclick="insertFieldRef('${f.name}')" style="background:white;padding:8px 10px;border-radius:6px;cursor:pointer;border:2px solid #28a745;display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background='white'">
+                                            <span style="font-weight:600;font-size:11px;color:#155724;">${escapeHtml(f.label)}</span>
+                                            <code style="background:#28a745;color:white;padding:2px 8px;border-radius:4px;font-size:10px;">{${f.name}}</code>
+                                        </div>
+                                    `).join('')}
                                 </div>
                             </div>
                         ` : `
-                            <div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;margin-top:10px;">
-                                Add number fields first to use in calculations.
+                            <div style="background:#fff3cd;padding:12px;border-radius:6px;font-size:11px;color:#856404;margin-top:10px;border:1px solid #ffeeba;">
+                                <span data-icon="alert-triangle" data-size="12"></span> <strong>No number fields available.</strong><br>
+                                Add Number fields to your form first, then use them in calculations.
                             </div>
                         `}
                         
-                        <div style="background:#e8f4fc;padding:10px;border-radius:6px;margin-top:10px;">
-                            <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Formula Examples:</div>
-                            <div style="font-size:9px;color:#666;">
-                                <div>• {qty} * {price} - multiply two fields</div>
-                                <div>• ({a} + {b}) / 2 - average of two fields</div>
-                                <div>• {total} * 0.15 - percentage calculation</div>
-                                <div>• {male} + {female} - sum fields</div>
+                        <!-- Quick Numbers -->
+                        <div style="margin-top:10px;">
+                            <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Quick Numbers:</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                ${[0, 1, 2, 5, 10, 100, 0.5, 0.1].map(n => `<button type="button" onclick="insertFormulaText('${n}')" class="calc-num-btn">${n}</button>`).join('')}
                             </div>
                         </div>
+                        
+                        <!-- Formula Preview -->
+                        <div style="background:#f8f9fa;padding:10px;border-radius:6px;margin-top:10px;border:1px solid #dee2e6;">
+                            <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:4px;">Formula Preview:</div>
+                            <div id="formulaPreview" style="font-family:monospace;font-size:12px;color:#004080;word-break:break-all;">${escapeHtml(field.formula || '(empty)')}</div>
+                        </div>
+                        
+                        <!-- Clear Button -->
+                        <button type="button" onclick="clearFormula()" style="margin-top:10px;padding:6px 12px;background:#dc3545;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;width:100%;">
+                            <span data-icon="trash-2" data-size="10"></span> Clear Formula
+                        </button>
                     </div>
                 `;
             }
@@ -3349,21 +3385,57 @@
             document.getElementById('propRequired')?.addEventListener('change', (e) => updateField('required', e.target.checked));
             document.getElementById('propCheckDuplicate')?.addEventListener('change', (e) => updateField('checkDuplicate', e.target.checked));
             document.getElementById('propOptions')?.addEventListener('change', (e) => updateField('options', e.target.value.split('\n').filter(o => o.trim())));
-            document.getElementById('propFormula')?.addEventListener('change', (e) => updateField('formula', e.target.value));
+            document.getElementById('propFormula')?.addEventListener('input', (e) => {
+                updateField('formula', e.target.value);
+                updateFormulaPreview(e.target.value);
+            });
         }
         
         // Insert field reference into formula
         window.insertFieldRef = function(fieldName) {
             const formulaInput = document.getElementById('propFormula');
             if (formulaInput) {
-                const cursorPos = formulaInput.selectionStart;
+                const cursorPos = formulaInput.selectionStart || formulaInput.value.length;
                 const before = formulaInput.value.substring(0, cursorPos);
                 const after = formulaInput.value.substring(cursorPos);
                 formulaInput.value = before + '{' + fieldName + '}' + after;
                 formulaInput.focus();
                 updateField('formula', formulaInput.value);
+                updateFormulaPreview(formulaInput.value);
             }
         };
+        
+        // Insert text (operators, numbers) into formula
+        window.insertFormulaText = function(text) {
+            const formulaInput = document.getElementById('propFormula');
+            if (formulaInput) {
+                const cursorPos = formulaInput.selectionStart || formulaInput.value.length;
+                const before = formulaInput.value.substring(0, cursorPos);
+                const after = formulaInput.value.substring(cursorPos);
+                formulaInput.value = before + text + after;
+                formulaInput.focus();
+                updateField('formula', formulaInput.value);
+                updateFormulaPreview(formulaInput.value);
+            }
+        };
+        
+        // Clear the formula
+        window.clearFormula = function() {
+            const formulaInput = document.getElementById('propFormula');
+            if (formulaInput) {
+                formulaInput.value = '';
+                updateField('formula', '');
+                updateFormulaPreview('');
+            }
+        };
+        
+        // Update formula preview
+        function updateFormulaPreview(formula) {
+            const preview = document.getElementById('formulaPreview');
+            if (preview) {
+                preview.textContent = formula || '(empty)';
+            }
+        }
         
         function renderLogicRules(rules, otherFields) {
             if (!rules || rules.length === 0) {
@@ -3841,17 +3913,69 @@
                 }
             });
             
+            // Build section visibility map - track which sections are hidden
+            const hiddenSections = new Set();
+            
+            // First pass: evaluate section visibility
+            state.fields.forEach(field => {
+                if (field.type !== 'section') return;
+                
+                const logicResult = evaluateFieldLogic(field, formData);
+                if (!logicResult.visible) {
+                    hiddenSections.add(field.id);
+                }
+            });
+            
+            // Build a map of which section each field belongs to
+            let currentSectionId = null;
+            const fieldSectionMap = {};
+            state.fields.forEach(field => {
+                if (field.type === 'section') {
+                    currentSectionId = field.id;
+                } else {
+                    fieldSectionMap[field.id] = currentSectionId;
+                }
+            });
+            
             // Apply logic to each field
             state.fields.forEach(field => {
-                if (field.type === 'section') return;
+                // For sections - find and hide the page that has this section ID
+                if (field.type === 'section') {
+                    const logicResult = evaluateFieldLogic(field, formData);
+                    const page = document.querySelector(`.form-page[data-section-id="${field.id}"]`);
+                    if (page) {
+                        if (logicResult.visible) {
+                            page.classList.remove('section-hidden');
+                        } else {
+                            page.classList.add('section-hidden');
+                            // Also clear all fields in this hidden page
+                            page.querySelectorAll('input, select, textarea').forEach(input => {
+                                if (input.type === 'radio' || input.type === 'checkbox') {
+                                    input.checked = false;
+                                } else if (input.type !== 'time') {
+                                    input.value = '';
+                                }
+                            });
+                        }
+                    }
+                    return;
+                }
                 
                 const fieldEl = document.querySelector(`[data-field-name="${field.name}"]`);
                 if (!fieldEl) return;
                 
+                // Check if field's section is hidden
+                const fieldSectionId = fieldSectionMap[field.id];
+                const sectionHidden = fieldSectionId && hiddenSections.has(fieldSectionId);
+                
+                // Evaluate field's own logic
                 const logicResult = evaluateFieldLogic(field, formData);
                 
+                // Field is visible only if both its section is visible AND its own logic says visible
+                const shouldBeVisible = logicResult.visible && !sectionHidden;
+                
                 // Show/Hide field
-                if (logicResult.visible) {
+                if (shouldBeVisible) {
                     fieldEl.classList.remove('field-hidden');
                 } else {
                     fieldEl.classList.add('field-hidden');
@@ -4001,6 +4125,9 @@
             if (dhis2Config) {
                 try {
                     const config = JSON.parse(dhis2Config);
+                    if (!state.dhis2) {
+                        state.dhis2 = { dataElements: {}, datasetId: null, programId: '', url: '', username: '', password: '', syncMode: 'aggregate', orgUnitLevel: 5, periodType: 'Monthly', periodColumn: '', orgUnitColumn: '', connected: false, orgUnits: [], orgUnitMap: {} };
+                    }
                     state.dhis2 = { ...state.dhis2, ...config };
                 } catch (e) {}
             }
@@ -4012,6 +4139,11 @@
             state.fields = [];
             state.selectedFieldId = null;
             state.fieldCounter = 0;
+            
+            // Ensure dhis2 object exists
+            if (!state.dhis2) {
+                state.dhis2 = { dataElements: {}, datasetId: null, programId: '', url: '', username: '', password: '', syncMode: 'aggregate', orgUnitLevel: 5, periodType: 'Monthly', periodColumn: '', orgUnitColumn: '', connected: false, orgUnits: [], orgUnitMap: {} };
+            }
             state.dhis2.dataElements = {};
             state.dhis2.datasetId = null;
             state.collectedData = [];
@@ -4076,8 +4208,17 @@
         function shareForm() {
             if (state.fields.length === 0) { notify('Add fields!', 'error'); return; }
             
+            // Ensure settings exist
+            if (!state.settings) {
+                state.settings = { title: 'Form', logo: CONFIG.LOGO_URL, aggregateColumn: '' };
+            }
+            
             const formData = {
-                s: { t: state.settings.title, l: state.settings.logo, ac: state.settings.aggregateColumn },
+                s: { 
+                    t: state.settings.title || 'Form', 
+                    l: state.settings.logo || CONFIG.LOGO_URL, 
+                    ac: state.settings.aggregateColumn || '' 
+                },
                 f: state.fields.map(f => ({ 
                     i: f.id, y: f.type, l: f.label, n: f.name, r: f.required, o: f.options, mx: f.max,
                     // Validation fields
@@ -4089,24 +4230,24 @@
                     at: f.autoTime,
                     cd: f.checkDuplicate, // Check for duplicates
                     // Cascade linked fields
-                    cg: f.cascadeGroup, // Cascade group ID
+                    cg: f.cascadeGroup || null, // Cascade group ID
                     cl: f.cascadeLevel, // Cascade level (0, 1, 2...)
-                    ccol: f.cascadeColumn, // This field's column name
-                    cc: f.cascadeColumns, // All cascade column names (on first field only)
-                    cdt: f.cascadeData, // Cascade data rows (on first field only)
+                    ccol: f.cascadeColumn || null, // This field's column name
+                    cc: f.cascadeColumns || null, // All cascade column names (on first field only)
+                    cdt: f.cascadeData || null, // Cascade data rows (on first field only)
                     // Calculation field
-                    frm: f.formula // Calculation formula
+                    frm: f.formula || null // Calculation formula
                 })),
-                d: state.dhis2.datasetId || state.dhis2.programId ? { 
+                d: (state.dhis2?.datasetId || state.dhis2?.programId) ? { 
                     id: state.dhis2.datasetId,
                     pid: state.dhis2.programId,
                     de: state.dhis2.dataElements 
                 } : null,
                 // Include DHIS2 credentials for sync
-                h: state.dhis2.url ? {
+                h: state.dhis2?.url ? {
                     u: state.dhis2.url,
                     n: state.dhis2.username,
-                    p: btoa(state.dhis2.password), // Encode password
+                    p: btoa(state.dhis2.password || ''), // Encode password
                     m: state.dhis2.syncMode,
                     ol: state.dhis2.orgUnitLevel,
                     pt: state.dhis2.periodType,
@@ -4116,20 +4257,38 @@
             };
             
             try {
+                // Clean up undefined values to reduce URL size
+                formData.f = formData.f.map(f => {
+                    const cleaned = {};
+                    Object.keys(f).forEach(k => {
+                        if (f[k] !== null && f[k] !== undefined && f[k] !== '') {
+                            cleaned[k] = f[k];
+                        }
+                    });
+                    return cleaned;
+                });
+                
                 const jsonStr = JSON.stringify(formData);
                 const compressed = pako.deflate(jsonStr);
                 const encoded = btoa(String.fromCharCode.apply(null, compressed));
                 const shareUrl = window.location.origin + window.location.pathname + '?d=' + encodeURIComponent(encoded);
                 
-                document.getElementById('shareUrl').textContent = shareUrl;
+                const shareUrlEl = document.getElementById('shareUrl');
+                if (shareUrlEl) shareUrlEl.textContent = shareUrl;
                 
                 const qrContainer = document.getElementById('qrCode');
-                qrContainer.innerHTML = '';
-                new QRCode(qrContainer, { text: shareUrl, width: 200, height: 200, colorDark: '#004080' });
+                if (qrContainer) {
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, { text: shareUrl, width: 200, height: 200, colorDark: '#004080' });
+                }
                 
                 saveFormToList();
-                document.getElementById('shareModal').classList.add('show');
-            } catch (err) { notify('Error: ' + err.message, 'error'); }
+                const modal = document.getElementById('shareModal');
+                if (modal) modal.classList.add('show');
+            } catch (err) { 
+                console.error('Share error:', err);
+                notify('Error: ' + err.message, 'error'); 
+            }
         }
 
         function copyShareUrl() {
@@ -4281,18 +4440,18 @@
 
         function renderFormViewer() {
             const s = state.settings;
-            let pages = [], currentPage = { title: 'Page 1', fields: [] };
+            let pages = [], currentPage = { title: 'Page 1', fields: [], sectionId: null };
             
             state.fields.forEach(field => {
                 if (field.type === 'section') {
                     if (currentPage.fields.length > 0) pages.push(currentPage);
-                    currentPage = { title: field.label, fields: [] };
+                    currentPage = { title: field.label, fields: [], sectionId: field.id };
                 } else {
                     currentPage.fields.push(field);
                 }
             });
             if (currentPage.fields.length > 0) pages.push(currentPage);
-            if (pages.length === 0) pages = [{ title: s.title, fields: state.fields.filter(f => f.type !== 'section') }];
+            if (pages.length === 0) pages = [{ title: s.title, fields: state.fields.filter(f => f.type !== 'section'), sectionId: null }];
             
             let pagesHtml = pages.map((page, pageIndex) => {
                 let fieldsHtml = page.fields.map(field => {
@@ -4434,12 +4593,12 @@
                 const isFirst = pageIndex === 0, isLast = pageIndex === pages.length - 1;
                 
                 return `
-                    <div class="form-page" data-page="${pageIndex}" style="${pageIndex === 0 ? '' : 'display:none;'}">
+                    <div class="form-page" data-page="${pageIndex}" data-section-id="${page.sectionId || ''}" style="${pageIndex === 0 ? '' : 'display:none;'}">
                         ${pages.length > 1 ? `<div class="page-header"><span class="page-indicator">Page ${pageIndex + 1}/${pages.length}</span><h3 class="page-title">${escapeHtml(page.title)}</h3></div>` : ''}
                         ${fieldsHtml}
                         <div class="page-navigation">
-                            ${!isFirst ? `<button type="button" class="nav-btn back-btn" onclick="goToPage(${pageIndex - 1})"><span class="inline-icon">${getIcon('arrow-left', 14)}</span> Back</button>` : '<div></div>'}
-                            ${!isLast ? `<button type="button" class="nav-btn next-btn" onclick="goToPage(${pageIndex + 1})">Next <span class="inline-icon">${getIcon('arrow-right', 14)}</span></button>` : ''}
+                            ${!isFirst ? `<button type="button" class="nav-btn back-btn" onclick="goToPrevPage(${pageIndex})"><span class="inline-icon">${getIcon('arrow-left', 14)}</span> Back</button>` : '<div></div>'}
+                            ${!isLast ? `<button type="button" class="nav-btn next-btn" onclick="goToNextPage(${pageIndex})">Next <span class="inline-icon">${getIcon('arrow-right', 14)}</span></button>` : ''}
                             ${isLast ? `<button type="submit" class="nav-btn submit-btn"><span data-icon="check" data-size="14"></span> Submit</button>` : ''}
                         </div>
                     </div>
@@ -5314,10 +5473,44 @@
             }
         }
 
-        function goToPage(pageIndex) {
-            document.querySelectorAll('.form-page').forEach(p => p.style.display = 'none');
-            document.querySelector(`.form-page[data-page="${pageIndex}"]`).style.display = 'block';
+        function goToPage(pageIndex, direction = 1) {
+            const pages = document.querySelectorAll('.form-page');
+            const totalPages = pages.length;
+            
+            // Find a visible page starting from pageIndex
+            let targetPage = pageIndex;
+            let attempts = 0;
+            
+            while (attempts < totalPages) {
+                const page = document.querySelector(`.form-page[data-page="${targetPage}"]`);
+                if (page && !page.classList.contains('section-hidden')) {
+                    // Found a visible page
+                    break;
+                }
+                // Skip to next page in the direction we're going
+                targetPage += direction;
+                if (targetPage < 0) targetPage = 0;
+                if (targetPage >= totalPages) targetPage = totalPages - 1;
+                attempts++;
+            }
+            
+            // Hide all pages and show target
+            pages.forEach(p => p.style.display = 'none');
+            const targetPageEl = document.querySelector(`.form-page[data-page="${targetPage}"]`);
+            if (targetPageEl) {
+                targetPageEl.style.display = 'block';
+            }
         }
+        
+        // Navigate to next visible page
+        window.goToNextPage = function(currentPage) {
+            goToPage(currentPage + 1, 1);
+        };
+        
+        // Navigate to previous visible page  
+        window.goToPrevPage = function(currentPage) {
+            goToPage(currentPage - 1, -1);
+        };
         
         // Initialize cascade dropdowns - handles both cascade-container and linked fields
         function initCascades() {
