@@ -4358,11 +4358,21 @@
             const localForms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
             const cloudForms = await loadFormsFromCloud();
             
+            // Build cloud forms map for quick lookup
+            const cloudFormsMap = {};
+            cloudForms.forEach(f => { cloudFormsMap[f.id] = f; });
+            
             // Merge: use most recently updated version
             const mergedForms = {};
+            const formsToUpload = [];
             
             localForms.forEach(f => {
                 mergedForms[f.id] = f;
+                // Check if local is newer than cloud
+                const cloudVersion = cloudFormsMap[f.id];
+                if (!cloudVersion || new Date(f.updatedAt) > new Date(cloudVersion.updatedAt)) {
+                    formsToUpload.push(f);
+                }
             });
             
             cloudForms.forEach(f => {
@@ -4374,9 +4384,10 @@
             const finalForms = Object.values(mergedForms);
             localStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
             
-            // Push all to cloud
-            for (const form of finalForms) {
-                await saveFormToCloud(form);
+            // Only push forms that are newer locally (in parallel for speed)
+            if (formsToUpload.length > 0) {
+                console.log(`Uploading ${formsToUpload.length} changed forms...`);
+                await Promise.all(formsToUpload.map(form => saveFormToCloud(form)));
             }
             
             return finalForms;
@@ -4403,9 +4414,18 @@
         
         // Save large cascade data to Google Sheets cloud storage
         async function saveCascadeDataToCloud(cascadeId, compressedData, columns) {
-            const scriptUrl = CONFIG.AUTH_SCRIPT_URL;
+            // Use CONFIG.AUTH_SCRIPT_URL or fallback to state.sheets.scriptUrl
+            const scriptUrl = CONFIG.AUTH_SCRIPT_URL || state.sheets.scriptUrl;
             if (!scriptUrl) {
                 throw new Error('No script URL configured');
+            }
+            
+            console.log('Saving cascade to:', scriptUrl);
+            console.log('Cascade ID:', cascadeId, 'Data length:', compressedData.length);
+            
+            // Check if data is too large
+            if (compressedData.length > 2000000) {
+                throw new Error('Cascade data too large (>2MB). Please reduce the number of rows.');
             }
             
             try {
@@ -4416,17 +4436,31 @@
                         action: 'saveCascadeData',
                         cascadeId: cascadeId,
                         columns: JSON.stringify(columns),
-                        data: compressedData // Already compressed text
+                        data: compressedData
                     })
                 });
+                
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Response text:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const result = await response.json();
+                console.log('Response result:', result);
+                
                 if (!result.success) {
                     throw new Error(result.error || 'Failed to save cascade data');
                 }
                 console.log('Cascade data saved to cloud:', cascadeId);
                 return true;
             } catch (err) {
-                console.error('Cascade save error:', err);
+                console.error('Cascade cloud save error:', err);
+                if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+                    throw new Error('Network error - check internet connection and that Apps Script is deployed');
+                }
                 throw err;
             }
         }
@@ -4709,27 +4743,51 @@
 
         // ==================== HOME ====================
         async function showHome() {
-            // Show loading state
-            document.getElementById('homeContainer').innerHTML = `
-                <div style="max-width:600px;margin:0 auto;padding:20px;text-align:center;">
-                    <p style="font-size:48px;margin-bottom:12px;"><span class="inline-icon">${getIcon('loader', 48)}</span></p>
-                    <p style="color:#666;">Loading forms...</p>
-                </div>
-            `;
             document.querySelector('.header').style.display = 'none';
             document.getElementById('mainContainer').classList.remove('show');
             document.querySelector('.footer').style.display = 'none';
             document.getElementById('homeContainer').classList.add('show');
             
-            // Try to sync with cloud if user is logged in
-            if (state.user) {
-                try {
-                    await syncForms();
-                } catch (err) {
-                    console.error('Sync error:', err);
-                }
-            }
+            // Show local forms IMMEDIATELY (no waiting)
+            renderHomeContent(false);
             
+            // Sync with cloud in BACKGROUND (don't block UI)
+            if (state.user) {
+                syncFormsInBackground();
+            }
+        }
+        
+        async function syncFormsInBackground() {
+            try {
+                console.log('Background sync started...');
+                const cloudForms = await loadFormsFromCloud();
+                
+                if (cloudForms.length > 0) {
+                    const localForms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+                    const mergedForms = {};
+                    
+                    localForms.forEach(f => { mergedForms[f.id] = f; });
+                    cloudForms.forEach(f => {
+                        if (!mergedForms[f.id] || new Date(f.updatedAt) > new Date(mergedForms[f.id].updatedAt)) {
+                            mergedForms[f.id] = f;
+                        }
+                    });
+                    
+                    const finalForms = Object.values(mergedForms);
+                    localStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
+                    
+                    // Re-render only if we're still on home page
+                    if (document.getElementById('homeContainer').classList.contains('show')) {
+                        renderHomeContent(true);
+                    }
+                }
+                console.log('Background sync complete');
+            } catch (err) {
+                console.error('Background sync error:', err);
+            }
+        }
+        
+        function renderHomeContent(synced) {
             const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
             const isLoggedIn = !!state.user;
             
@@ -4758,11 +4816,16 @@
                 </div>
             `).join('');
             
+            const syncStatus = isLoggedIn ? (synced ? 
+                '<span style="color:#28a745;"><span class="inline-icon">' + getIcon('check-circle', 12) + '</span> Synced</span>' : 
+                '<span style="color:#ffc107;"><span class="inline-icon">' + getIcon('loader', 12) + '</span> Syncing...</span>') : '';
+            
             document.getElementById('homeContainer').innerHTML = `
                 <div style="max-width:600px;margin:0 auto;padding:20px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                         <h2 style="color:#004080;"><span class="inline-icon">${getIcon('home', 20)}</span> My Forms</h2>
-                        <div style="display:flex;gap:8px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            ${syncStatus}
                             ${isLoggedIn ? `
                                 <button onclick="syncFormsManually()" style="padding:10px 15px;background:#17a2b8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;" title="Sync with Cloud">
                                     <span class="inline-icon">${getIcon('refresh-cw', 14)}</span>
@@ -4797,7 +4860,7 @@
             try {
                 await syncForms();
                 notify('Forms synced!', 'success');
-                showHome();
+                renderHomeContent(true);
             } catch (err) {
                 notify('Sync failed: ' + err.message, 'error');
             }
@@ -6362,8 +6425,7 @@
             notify('You are offline - data will be saved locally', 'warning');
         });
 
-        // PWA Install - Direct install only (v5)
-        console.log('ICF Collect PWA v5 - Direct Install Mode');
+        // PWA Install
         let deferredPrompt;
         
         // Detect if running as installed PWA
@@ -6375,22 +6437,13 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            console.log('Install prompt captured - direct install available');
             showInstallButton();
         });
         
         function showInstallButton() {
-            if (isInstalledPWA()) {
-                console.log('Already installed as PWA');
-                return;
-            }
+            if (isInstalledPWA()) return;
             if (document.getElementById('installBanner')) return;
-            if (!deferredPrompt) {
-                console.log('No deferredPrompt - direct install not available');
-                return;
-            }
-            
-            console.log('Showing install banner with direct install');
+            if (!deferredPrompt) return;
             
             // Create popup banner at bottom of screen
             const banner = document.createElement('div');
@@ -6434,21 +6487,14 @@
         };
         
         async function installApp() {
-            console.log('Install button clicked, deferredPrompt:', !!deferredPrompt);
             if (deferredPrompt) {
-                // Direct install
-                console.log('Triggering direct install prompt');
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                console.log('User choice:', outcome);
                 if (outcome === 'accepted') {
                     notify('App installed successfully!', 'success');
                     document.getElementById('installBanner')?.remove();
                 }
                 deferredPrompt = null;
-            } else {
-                console.log('No deferredPrompt available');
-                notify('Direct install not available. Try using Chrome or Edge.', 'info');
             }
         }
         
