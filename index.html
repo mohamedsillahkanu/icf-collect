@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#004080">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://icf-sl.com/logo.png">
+    <link rel="apple-touch-icon" href="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg">
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
@@ -6353,53 +6353,287 @@
             notify('You are offline - data will be saved locally', 'warning');
         });
 
-        // PWA Install Prompt
+        // PWA Install - Multi-browser support
         let deferredPrompt;
+        
+        // Detect browser
+        function getBrowser() {
+            const ua = navigator.userAgent;
+            if (ua.includes('Edg/')) return 'edge';
+            if (ua.includes('Chrome') && !ua.includes('Edg')) return 'chrome';
+            if (ua.includes('Firefox')) return 'firefox';
+            if (ua.includes('Safari') && !ua.includes('Chrome')) return 'safari';
+            if (ua.includes('SamsungBrowser')) return 'samsung';
+            return 'other';
+        }
+        
+        // Detect if running as installed PWA
+        function isInstalledPWA() {
+            return window.matchMedia('(display-mode: standalone)').matches || 
+                   window.navigator.standalone === true;
+        }
+        
+        // Check if iOS
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+        
+        // Check if Android
+        function isAndroid() {
+            return /Android/.test(navigator.userAgent);
+        }
         
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            // Show install button
             showInstallButton();
         });
         
         function showInstallButton() {
-            // Add install button to header if not already there
-            if (document.getElementById('installBtn')) return;
+            if (isInstalledPWA()) return; // Already installed
+            if (document.getElementById('installBanner')) return;
             
-            const header = document.querySelector('.header');
-            if (header) {
-                const installBtn = document.createElement('button');
-                installBtn.id = 'installBtn';
-                installBtn.innerHTML = '📲 Install App';
-                installBtn.style.cssText = 'background:#28a745;color:white;border:none;padding:8px 12px;border-radius:6px;font-family:Oswald;font-size:11px;cursor:pointer;margin-left:10px;';
-                installBtn.onclick = installApp;
-                header.querySelector('.header-right')?.appendChild(installBtn);
+            // Create popup banner at bottom of screen
+            const banner = document.createElement('div');
+            banner.id = 'installBanner';
+            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#004080 0%,#001a33 100%);color:white;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:15px;z-index:10000;box-shadow:0 -4px 20px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out;';
+            banner.innerHTML = `
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" style="width:45px;height:45px;border-radius:10px;border:2px solid white;">
+                    <div>
+                        <div style="font-weight:700;font-size:14px;">Install ICF Collect</div>
+                        <div style="font-size:11px;opacity:0.9;">Works offline • Faster • Home screen</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button onclick="installApp()" style="background:#28a745;color:white;border:none;padding:10px 20px;border-radius:6px;font-family:Oswald;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <span data-icon="download" data-size="14"></span> Install
+                    </button>
+                    <button onclick="dismissInstallBanner()" style="background:transparent;color:white;border:none;padding:8px;cursor:pointer;opacity:0.7;font-size:18px;">✕</button>
+                </div>
+            `;
+            
+            // Add animation style
+            if (!document.getElementById('installBannerStyle')) {
+                const style = document.createElement('style');
+                style.id = 'installBannerStyle';
+                style.textContent = '@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }';
+                document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(banner);
+            initIcons();
+        }
+        
+        // Show install button for all browsers (with instructions)
+        function showUniversalInstallButton() {
+            if (isInstalledPWA()) return;
+            if (document.getElementById('installBanner')) return;
+            if (sessionStorage.getItem('installBannerDismissed')) return;
+            
+            // Create popup banner at bottom of screen
+            const banner = document.createElement('div');
+            banner.id = 'installBanner';
+            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#004080 0%,#001a33 100%);color:white;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:15px;z-index:10000;box-shadow:0 -4px 20px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out;flex-wrap:wrap;';
+            banner.innerHTML = `
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" style="width:45px;height:45px;border-radius:10px;border:2px solid white;">
+                    <div>
+                        <div style="font-weight:700;font-size:14px;">Install ICF Collect</div>
+                        <div style="font-size:11px;opacity:0.9;">Works offline • Faster • Home screen</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button onclick="installApp()" style="background:#28a745;color:white;border:none;padding:10px 20px;border-radius:6px;font-family:Oswald;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <span data-icon="download" data-size="14"></span> Install
+                    </button>
+                    <button onclick="dismissInstallBanner()" style="background:transparent;color:white;border:none;padding:8px;cursor:pointer;opacity:0.7;font-size:18px;">✕</button>
+                </div>
+            `;
+            
+            // Add animation style
+            if (!document.getElementById('installBannerStyle')) {
+                const style = document.createElement('style');
+                style.id = 'installBannerStyle';
+                style.textContent = '@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }';
+                document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(banner);
+            initIcons();
+        }
+        
+        window.dismissInstallBanner = function() {
+            const banner = document.getElementById('installBanner');
+            if (banner) {
+                banner.style.animation = 'slideUp 0.3s ease-out reverse';
+                setTimeout(() => banner.remove(), 300);
+                sessionStorage.setItem('installBannerDismissed', 'true');
+            }
+        };
+        
+        async function installApp() {
+            if (deferredPrompt) {
+                // Chrome, Edge, Samsung - automatic install
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    notify('App installed successfully!', 'success');
+                    document.getElementById('installBanner')?.remove();
+                }
+                deferredPrompt = null;
+            } else {
+                // Show manual instructions
+                showInstallInstructions();
             }
         }
         
-        async function installApp() {
-            if (!deferredPrompt) {
-                notify('App already installed or not supported', 'info');
-                return;
+        function showInstallInstructions() {
+            const browser = getBrowser();
+            let instructions = '';
+            
+            if (isIOS()) {
+                instructions = `
+                    <div style="text-align:center;">
+                        <div style="font-size:48px;margin-bottom:15px;">📱</div>
+                        <h3 style="color:#004080;margin-bottom:15px;">Install on iPhone/iPad</h3>
+                        <ol style="text-align:left;padding-left:20px;line-height:2;">
+                            <li>Tap the <strong>Share</strong> button <span style="border:1px solid #ccc;padding:2px 6px;border-radius:4px;">□↑</span> at the bottom</li>
+                            <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                            <li>Tap <strong>"Add"</strong> in the top right</li>
+                        </ol>
+                        <p style="margin-top:15px;color:#666;font-size:12px;">The app will appear on your home screen</p>
+                    </div>
+                `;
+            } else if (isAndroid()) {
+                if (browser === 'firefox') {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">🦊</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install on Firefox</h3>
+                            <ol style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Tap the <strong>Menu</strong> button <span style="border:1px solid #ccc;padding:2px 6px;border-radius:4px;">⋮</span></li>
+                                <li>Tap <strong>"Install"</strong> or <strong>"Add to Home Screen"</strong></li>
+                                <li>Confirm by tapping <strong>"Add"</strong></li>
+                            </ol>
+                        </div>
+                    `;
+                } else {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">📲</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install on Android</h3>
+                            <ol style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Tap the <strong>Menu</strong> button <span style="border:1px solid #ccc;padding:2px 6px;border-radius:4px;">⋮</span></li>
+                                <li>Tap <strong>"Install app"</strong> or <strong>"Add to Home Screen"</strong></li>
+                                <li>Tap <strong>"Install"</strong> to confirm</li>
+                            </ol>
+                        </div>
+                    `;
+                }
+            } else {
+                // Desktop
+                if (browser === 'edge') {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">🌐</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install on Edge</h3>
+                            <ol style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Click the <strong>install icon</strong> <span style="border:1px solid #ccc;padding:2px 6px;border-radius:4px;">➕</span> in the address bar</li>
+                                <li>Or click <strong>Menu (⋯)</strong> → <strong>Apps</strong> → <strong>Install ICF Collect</strong></li>
+                                <li>Click <strong>"Install"</strong> to confirm</li>
+                            </ol>
+                        </div>
+                    `;
+                } else if (browser === 'chrome') {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">🌐</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install on Chrome</h3>
+                            <ol style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Click the <strong>install icon</strong> <span style="border:1px solid #ccc;padding:2px 6px;border-radius:4px;">➕</span> in the address bar</li>
+                                <li>Or click <strong>Menu (⋮)</strong> → <strong>Install ICF Collect</strong></li>
+                                <li>Click <strong>"Install"</strong> to confirm</li>
+                            </ol>
+                        </div>
+                    `;
+                } else if (browser === 'firefox') {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">🦊</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Firefox Desktop</h3>
+                            <p style="color:#666;margin-bottom:15px;">Firefox desktop doesn't support app installation.</p>
+                            <p><strong>Options:</strong></p>
+                            <ul style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Use <strong>Chrome</strong> or <strong>Edge</strong> to install</li>
+                                <li>Bookmark this page for quick access</li>
+                                <li>On Android Firefox, you can install it</li>
+                            </ul>
+                        </div>
+                    `;
+                } else if (browser === 'safari') {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">🧭</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install on Safari (Mac)</h3>
+                            <ol style="text-align:left;padding-left:20px;line-height:2;">
+                                <li>Click <strong>File</strong> menu</li>
+                                <li>Click <strong>"Add to Dock"</strong></li>
+                            </ol>
+                            <p style="margin-top:15px;color:#666;font-size:12px;">Requires macOS Sonoma or later</p>
+                        </div>
+                    `;
+                } else {
+                    instructions = `
+                        <div style="text-align:center;">
+                            <div style="font-size:48px;margin-bottom:15px;">💻</div>
+                            <h3 style="color:#004080;margin-bottom:15px;">Install ICF Collect</h3>
+                            <p>Look for an <strong>install icon</strong> in your browser's address bar or menu.</p>
+                            <p style="margin-top:15px;color:#666;font-size:12px;">For best experience, use Chrome or Edge</p>
+                        </div>
+                    `;
+                }
             }
             
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            
-            if (outcome === 'accepted') {
-                notify('App installed successfully!', 'success');
-                document.getElementById('installBtn')?.remove();
-            }
-            
-            deferredPrompt = null;
+            // Show modal with instructions
+            const modal = document.createElement('div');
+            modal.id = 'installModal';
+            modal.className = 'modal-overlay show';
+            modal.innerHTML = `
+                <div class="modal" style="max-width:400px;">
+                    <div class="modal-header">
+                        <h3><span data-icon="download" data-size="18"></span> Install App</h3>
+                        <button class="modal-close" onclick="document.getElementById('installModal').remove()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        ${instructions}
+                        <div style="margin-top:20px;padding-top:15px;border-top:1px solid #eee;">
+                            <p style="font-size:11px;color:#666;text-align:center;">
+                                <strong>Benefits:</strong> Works offline • Faster loading • Home screen icon
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+            document.body.appendChild(modal);
+            initIcons();
         }
         
         window.addEventListener('appinstalled', () => {
             console.log('PWA installed');
-            document.getElementById('installBtn')?.remove();
+            document.getElementById('installBanner')?.remove();
+            document.getElementById('installModal')?.remove();
             deferredPrompt = null;
+            notify('App installed! Find it on your home screen.', 'success');
         });
+        
+        // Show install button after a short delay (for all browsers)
+        setTimeout(() => {
+            if (!isInstalledPWA() && !deferredPrompt) {
+                showUniversalInstallButton();
+            }
+        }, 2000);
 
         // Initialize
         init();
