@@ -448,6 +448,7 @@
             <button class="header-btn" onclick="previewForm()"><span data-icon="eye" data-size="14"></span> Preview</button>
             <button class="header-btn dhis2" onclick="openDhis2Config()"><span data-icon="link" data-size="14"></span> DHIS2</button>
             <button class="header-btn primary" onclick="shareForm()"><span data-icon="share-2" data-size="14"></span> Share</button>
+            <button class="header-btn" id="headerInstallBtn" onclick="installApp()" style="background:#28a745;display:none;"><span data-icon="download" data-size="14"></span> Install</button>
             <button class="header-btn danger" onclick="logout()"><span data-icon="log-out" data-size="14"></span> Logout</button>
         </div>
     </header>
@@ -4424,20 +4425,23 @@
             console.log('Cascade ID:', cascadeId, 'Data length:', compressedData.length);
             
             // Check if data is too large
-            if (compressedData.length > 2000000) {
-                throw new Error('Cascade data too large (>2MB). Please reduce the number of rows.');
+            if (compressedData.length > 5000000) {
+                throw new Error('Cascade data too large (>5MB). Please reduce the number of rows.');
             }
             
             try {
-                const response = await fetch(scriptUrl, {
+                // Build URL with params, send data in POST body
+                const url = new URL(scriptUrl);
+                url.searchParams.set('action', 'saveCascadeData');
+                url.searchParams.set('cascadeId', cascadeId);
+                url.searchParams.set('columns', JSON.stringify(columns));
+                
+                console.log('Sending POST to:', url.toString());
+                
+                const response = await fetch(url.toString(), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        action: 'saveCascadeData',
-                        cascadeId: cascadeId,
-                        columns: JSON.stringify(columns),
-                        data: compressedData
-                    })
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: compressedData
                 });
                 
                 console.log('Response status:', response.status);
@@ -6437,13 +6441,24 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
+            console.log('beforeinstallprompt fired - install available');
             showInstallButton();
         });
         
         function showInstallButton() {
+            console.log('showInstallButton called, deferredPrompt:', !!deferredPrompt, 'isInstalled:', isInstalledPWA());
+            
+            // Show header Install button
+            const headerBtn = document.getElementById('headerInstallBtn');
+            if (headerBtn && deferredPrompt && !isInstalledPWA()) {
+                headerBtn.style.display = '';
+                console.log('Header install button shown');
+            }
+            
             if (isInstalledPWA()) return;
             if (document.getElementById('installBanner')) return;
             if (!deferredPrompt) return;
+            if (sessionStorage.getItem('installBannerDismissed')) return;
             
             // Create popup banner at bottom of screen
             const banner = document.createElement('div');
@@ -6487,14 +6502,20 @@
         };
         
         async function installApp() {
+            console.log('installApp called, deferredPrompt:', !!deferredPrompt);
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
+                console.log('Install outcome:', outcome);
                 if (outcome === 'accepted') {
                     notify('App installed successfully!', 'success');
                     document.getElementById('installBanner')?.remove();
+                    const headerBtn = document.getElementById('headerInstallBtn');
+                    if (headerBtn) headerBtn.style.display = 'none';
                 }
                 deferredPrompt = null;
+            } else {
+                notify('Install not available. Use Chrome or Edge browser.', 'info');
             }
         }
         
@@ -6502,6 +6523,8 @@
         window.addEventListener('appinstalled', () => {
             console.log('PWA installed');
             document.getElementById('installBanner')?.remove();
+            const headerBtn = document.getElementById('headerInstallBtn');
+            if (headerBtn) headerBtn.style.display = 'none';
             deferredPrompt = null;
             notify('App installed! Find it on your home screen.', 'success');
         });
