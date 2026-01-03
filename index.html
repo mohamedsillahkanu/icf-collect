@@ -85,6 +85,9 @@
         .field-badge.required { background: #f8d7da; color: #721c24; }
         .field-badge.dhis2 { background: #d1ecf1; color: #0c5460; }
         .field-badge.aggregate { background: #d4edda; color: #155724; }
+        .field-badge.cascade { background: #e8f4fc; color: #004080; }
+        .field-badge.calc { background: #fff3cd; color: #856404; }
+        .form-field.cascade-field { border-left: 3px solid #17a2b8; }
         
         .section-divider { background: linear-gradient(135deg, #004080 0%, #002855 100%); color: white; padding: 12px 16px; margin: 15px 0; border-radius: 8px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         
@@ -439,6 +442,7 @@
                 <h3 class="sidebar-title"><span data-icon="edit-3" data-size="14"></span> Basic Fields</h3>
                 <div class="field-type" data-type="text"><span data-icon="type" data-size="14"></span> Text Input</div>
                 <div class="field-type" data-type="number"><span data-icon="hash" data-size="14"></span> Number</div>
+                <div class="field-type" data-type="calculation"><span data-icon="calculator" data-size="14"></span> Calculation</div>
                 <div class="field-type" data-type="date"><span data-icon="calendar" data-size="14"></span> Date</div>
                 <div class="field-type" data-type="time"><span data-icon="clock" data-size="14"></span> Time</div>
                 <div class="field-type" data-type="email"><span data-icon="mail" data-size="14"></span> Email</div>
@@ -746,6 +750,7 @@
             'qr-code': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>',
             'scan': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
             'git-branch': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
+            'calculator': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10"/><line x1="12" y1="10" x2="12" y2="10"/><line x1="16" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="12" y2="18"/><line x1="16" y1="18" x2="16" y2="18"/></svg>',
             'file-edit': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l1-3.95 5.42-5.44Z"/></svg>',
             'copy-check': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 15 2 2 4-4"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
         };
@@ -864,6 +869,7 @@
             period: { label: 'Period', icon: 'calendar-days', defaultLabel: 'Reporting Period', valueType: 'TEXT', isDhis2: true, category: 'dhis2' },
             text: { label: 'Text', icon: 'type', defaultLabel: 'Text Field', valueType: 'TEXT', category: 'text' },
             number: { label: 'Number', icon: 'hash', defaultLabel: 'Number Field', valueType: 'NUMBER', category: 'numeric' },
+            calculation: { label: 'Calculation', icon: 'calculator', defaultLabel: 'Calculated Field', valueType: 'NUMBER', category: 'numeric' },
             date: { label: 'Date', icon: 'calendar', defaultLabel: 'Date Field', valueType: 'DATE', category: 'date' },
             time: { label: 'Time', icon: 'clock', defaultLabel: 'Time Field', valueType: 'TIME', category: 'time' },
             email: { label: 'Email', icon: 'mail', defaultLabel: 'Email Address', valueType: 'TEXT', category: 'text' },
@@ -2928,13 +2934,13 @@
             notify('Template downloaded! Edit columns and data as needed.', 'success');
         };
         
-        // Handle cascade Excel file upload
+        // Handle cascade Excel file upload - creates separate linked fields
         window.handleCascadeUpload = async function(input) {
             const file = input.files[0];
             if (!file) return;
             
-            const field = state.fields.find(f => f.id === state.selectedFieldId);
-            if (!field || field.type !== 'cascade') return;
+            const currentField = state.fields.find(f => f.id === state.selectedFieldId);
+            if (!currentField || currentField.type !== 'cascade') return;
             
             try {
                 const data = await file.arrayBuffer();
@@ -2965,16 +2971,39 @@
                     return obj;
                 });
                 
-                // Update field
-                field.cascadeColumns = columns;
-                field.cascadeData = cascadeData;
-                field.cascadeValueColumn = columns[columns.length - 1]; // Default to last column
+                // Generate unique group ID
+                const cascadeGroupId = 'cascade_' + Date.now();
                 
+                // Find current field index
+                const currentIndex = state.fields.findIndex(f => f.id === currentField.id);
+                
+                // Remove the cascade placeholder field
+                state.fields.splice(currentIndex, 1);
+                
+                // Create separate select fields for each column
+                const newFields = columns.map((col, idx) => ({
+                    id: cascadeGroupId + '_' + idx,
+                    type: 'select',
+                    label: col,
+                    name: col.toLowerCase().replace(/\s+/g, '_'),
+                    required: false,
+                    options: [], // Will be populated dynamically
+                    cascadeGroup: cascadeGroupId,
+                    cascadeLevel: idx,
+                    cascadeColumn: col,
+                    cascadeData: idx === 0 ? cascadeData : null, // Only first field stores data
+                    cascadeColumns: idx === 0 ? columns : null
+                }));
+                
+                // Insert new fields at the same position
+                state.fields.splice(currentIndex, 0, ...newFields);
+                
+                state.selectedFieldId = newFields[0].id;
                 renderFields();
                 renderProperties();
                 saveToStorage();
                 
-                notify(`Loaded ${cascadeData.length} rows with ${columns.length} columns`, 'success');
+                notify(`Created ${columns.length} linked cascade fields with ${cascadeData.length} data rows`, 'success');
             } catch (err) {
                 console.error('Excel parse error:', err);
                 notify('Error reading Excel file: ' + err.message, 'error');
@@ -3013,8 +3042,10 @@
                 const def = fieldDefs[f.type];
                 const isDhis2Field = f.type === 'period';
                 const isNumeric = f.type === 'number';
+                const isCascade = f.cascadeGroup;
+                const isCalc = f.type === 'calculation';
                 
-                return `<div class="form-field ${f.id === state.selectedFieldId ? 'selected' : ''} ${isDhis2Field ? 'dhis2-field' : ''}" data-id="${f.id}">
+                return `<div class="form-field ${f.id === state.selectedFieldId ? 'selected' : ''} ${isDhis2Field ? 'dhis2-field' : ''} ${isCascade ? 'cascade-field' : ''}" data-id="${f.id}">
                     <div class="form-field-header">
                         <span class="form-field-label"><span class="inline-icon">${getIcon(def?.icon || 'file-text', 14)}</span> ${f.label}</span>
                         <div class="form-field-actions">
@@ -3028,6 +3059,8 @@
                         ${f.required ? '<span class="field-badge required">Required</span>' : ''}
                         ${isDhis2Field ? '<span class="field-badge dhis2">DHIS2</span>' : ''}
                         ${isNumeric ? '<span class="field-badge aggregate">SUM</span>' : ''}
+                        ${isCascade ? `<span class="field-badge cascade">Cascade L${f.cascadeLevel + 1}</span>` : ''}
+                        ${isCalc ? '<span class="field-badge calc">CALC</span>' : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -3082,7 +3115,7 @@
                 </div>
             `;
             
-            if (['select', 'radio', 'checkbox'].includes(field.type)) {
+            if (['select', 'radio', 'checkbox'].includes(field.type) && !field.cascadeGroup) {
                 html += `
                     <div class="prop-section">
                         <div class="prop-section-title"><span data-icon="list" data-size="12"></span> Options (one per line)</div>
@@ -3091,7 +3124,46 @@
                 `;
             }
             
-            // Cascade field properties
+            // Calculation field properties
+            if (field.type === 'calculation') {
+                const numberFields = state.fields.filter(f => f.type === 'number' && f.id !== field.id);
+                html += `
+                    <div class="prop-section">
+                        <div class="prop-section-title"><span data-icon="calculator" data-size="12"></span> Formula</div>
+                        <p style="font-size:10px;color:#666;margin-bottom:10px;">Use field names in {brackets}. Operators: + - * / ( )</p>
+                        
+                        <div class="property-group">
+                            <label class="property-label">Formula</label>
+                            <input type="text" class="property-input" id="propFormula" value="${escapeHtml(field.formula || '')}" placeholder="e.g., {field1} + {field2} * 2">
+                        </div>
+                        
+                        ${numberFields.length > 0 ? `
+                            <div style="background:#f8f9fa;padding:10px;border-radius:6px;margin-top:10px;">
+                                <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Available Number Fields:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                    ${numberFields.map(f => `<code onclick="insertFieldRef('${f.name}')" style="background:#e9ecef;padding:2px 6px;border-radius:4px;font-size:10px;cursor:pointer;border:1px solid #dee2e6;">{${f.name}}</code>`).join('')}
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;margin-top:10px;">
+                                Add number fields first to use in calculations.
+                            </div>
+                        `}
+                        
+                        <div style="background:#e8f4fc;padding:10px;border-radius:6px;margin-top:10px;">
+                            <div style="font-size:10px;font-weight:700;color:#004080;margin-bottom:6px;">Formula Examples:</div>
+                            <div style="font-size:9px;color:#666;">
+                                <div>• {qty} * {price} - multiply two fields</div>
+                                <div>• ({a} + {b}) / 2 - average of two fields</div>
+                                <div>• {total} * 0.15 - percentage calculation</div>
+                                <div>• {male} + {female} - sum fields</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Cascade field properties (show group info)
             if (field.type === 'cascade') {
                 const cascadeColumns = field.cascadeColumns || [];
                 const cascadeDataCount = (field.cascadeData || []).length;
@@ -3277,7 +3349,21 @@
             document.getElementById('propRequired')?.addEventListener('change', (e) => updateField('required', e.target.checked));
             document.getElementById('propCheckDuplicate')?.addEventListener('change', (e) => updateField('checkDuplicate', e.target.checked));
             document.getElementById('propOptions')?.addEventListener('change', (e) => updateField('options', e.target.value.split('\n').filter(o => o.trim())));
+            document.getElementById('propFormula')?.addEventListener('change', (e) => updateField('formula', e.target.value));
         }
+        
+        // Insert field reference into formula
+        window.insertFieldRef = function(fieldName) {
+            const formulaInput = document.getElementById('propFormula');
+            if (formulaInput) {
+                const cursorPos = formulaInput.selectionStart;
+                const before = formulaInput.value.substring(0, cursorPos);
+                const after = formulaInput.value.substring(cursorPos);
+                formulaInput.value = before + '{' + fieldName + '}' + after;
+                formulaInput.focus();
+                updateField('formula', formulaInput.value);
+            }
+        };
         
         function renderLogicRules(rules, otherFields) {
             if (!rules || rules.length === 0) {
@@ -4002,10 +4088,14 @@
                     nfd: f.noFutureDates, npd: f.noPastDates, mid: f.minDate, mxd2: f.maxDate,
                     at: f.autoTime,
                     cd: f.checkDuplicate, // Check for duplicates
-                    // Cascade fields
-                    cc: f.cascadeColumns, // Cascade column names
-                    cdt: f.cascadeData, // Cascade data rows
-                    cvc: f.cascadeValueColumn // Which column to store as value
+                    // Cascade linked fields
+                    cg: f.cascadeGroup, // Cascade group ID
+                    cl: f.cascadeLevel, // Cascade level (0, 1, 2...)
+                    ccol: f.cascadeColumn, // This field's column name
+                    cc: f.cascadeColumns, // All cascade column names (on first field only)
+                    cdt: f.cascadeData, // Cascade data rows (on first field only)
+                    // Calculation field
+                    frm: f.formula // Calculation formula
                 })),
                 d: state.dhis2.datasetId || state.dhis2.programId ? { 
                     id: state.dhis2.datasetId,
@@ -4150,10 +4240,14 @@
                 noFutureDates: f.nfd, noPastDates: f.npd, minDate: f.mid, maxDate: f.mxd2,
                 autoTime: f.at !== false,
                 checkDuplicate: f.cd || false,
-                // Cascade fields
+                // Cascade linked fields
+                cascadeGroup: f.cg || null,
+                cascadeLevel: f.cl,
+                cascadeColumn: f.ccol || null,
                 cascadeColumns: f.cc || [],
                 cascadeData: f.cdt || [],
-                cascadeValueColumn: f.cvc || ''
+                // Calculation field
+                formula: f.frm || ''
             }));
             
             // Load DHIS2 dataset/program info
@@ -4256,11 +4350,30 @@
                         case 'number':
                             input = `<input type="number" name="${field.name}" class="viewer-input" ${reqAttr}>`;
                             break;
+                        case 'calculation':
+                            input = `<input type="text" name="${field.name}" class="viewer-input calculation-field" 
+                                data-formula="${escapeHtml(field.formula || '')}" 
+                                readonly 
+                                style="background:#e9ecef;font-weight:600;color:#004080;">`;
+                            break;
                         case 'textarea':
                             input = `<textarea name="${field.name}" class="viewer-input" rows="3" ${reqAttr}${textAttrs}></textarea>`;
                             break;
                         case 'select':
-                            input = `<select name="${field.name}" class="viewer-input" ${reqAttr}><option value="">-- Select --</option>${(field.options||[]).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+                            if (field.cascadeGroup) {
+                                // Cascade-linked select field
+                                const isFirst = field.cascadeLevel === 0;
+                                input = `<select name="${field.name}" class="viewer-input cascade-field" 
+                                    data-cascade-group="${field.cascadeGroup}" 
+                                    data-cascade-level="${field.cascadeLevel}"
+                                    data-cascade-column="${field.cascadeColumn}"
+                                    onchange="handleCascadeChange(this)"
+                                    ${isFirst ? '' : 'disabled'} ${reqAttr}>
+                                    <option value="">-- Select ${escapeHtml(field.label)} --</option>
+                                </select>`;
+                            } else {
+                                input = `<select name="${field.name}" class="viewer-input" ${reqAttr}><option value="">-- Select --</option>${(field.options||[]).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+                            }
                             break;
                         case 'radio': case 'yesno':
                             const opts = field.type === 'yesno' ? ['Yes','No'] : (field.options||[]);
@@ -4290,12 +4403,12 @@
                         case 'cascade':
                             const cascadeColumns = field.cascadeColumns || [];
                             const cascadeId = field.id;
-                            if (cascadeColumns.length > 0) {
+                            if (cascadeColumns.length > 0 && field.cascadeData && field.cascadeData.length > 0) {
                                 input = `<div class="cascade-container" data-cascade-id="${cascadeId}" data-field-name="${field.name}" data-value-column="${field.cascadeValueColumn || cascadeColumns[cascadeColumns.length - 1]}">
                                     ${cascadeColumns.map((col, idx) => `
                                         <div class="cascade-level" data-level="${idx}">
                                             <label class="cascade-label">${escapeHtml(col)}</label>
-                                            <select class="viewer-input cascade-select" data-column="${col}" data-level="${idx}" onchange="updateCascade(this)" ${idx === 0 ? '' : 'disabled'}>
+                                            <select class="viewer-input cascade-select" data-column="${col}" data-level="${idx}" onchange="handleCascadeSelect(this)" ${idx === 0 ? '' : 'disabled'}>
                                                 <option value="">-- Select ${escapeHtml(col)} --</option>
                                             </select>
                                         </div>
@@ -4303,7 +4416,9 @@
                                     <input type="hidden" name="${field.name}" ${reqAttr}>
                                 </div>`;
                             } else {
-                                input = `<div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;">Cascade data not configured</div>`;
+                                input = `<div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:11px;color:#856404;">
+                                    <span data-icon="alert-triangle" data-size="12"></span> Cascade data not configured. Upload Excel in form builder.
+                                </div>`;
                             }
                             break;
                         case 'rating':
@@ -4414,9 +4529,9 @@
             const form = document.getElementById('viewerForm');
             if (!form) return;
             
-            // Add change listener to apply logic when form values change
-            form.addEventListener('input', applyFormLogic);
-            form.addEventListener('change', applyFormLogic);
+            // Add change listener to apply logic and run calculations when form values change
+            form.addEventListener('input', () => { applyFormLogic(); runCalculations(); });
+            form.addEventListener('change', () => { applyFormLogic(); runCalculations(); });
             
             form.onsubmit = async function(e) {
                 e.preventDefault();
@@ -5204,8 +5319,9 @@
             document.querySelector(`.form-page[data-page="${pageIndex}"]`).style.display = 'block';
         }
         
-        // Initialize cascade dropdowns
+        // Initialize cascade dropdowns - handles both cascade-container and linked fields
         function initCascades() {
+            // Method 1: cascade-container (single cascade field with multiple dropdowns inside)
             document.querySelectorAll('.cascade-container').forEach(container => {
                 const cascadeId = container.dataset.cascadeId;
                 const field = state.fields.find(f => f.id === cascadeId);
@@ -5214,8 +5330,7 @@
                 const columns = field.cascadeColumns || [];
                 if (columns.length === 0) return;
                 
-                // Populate first dropdown with unique values
-                const firstSelect = container.querySelector('[data-level="0"]');
+                const firstSelect = container.querySelector('select[data-level="0"]');
                 if (firstSelect) {
                     const uniqueValues = [...new Set(field.cascadeData.map(row => row[columns[0]]).filter(Boolean))].sort();
                     uniqueValues.forEach(val => {
@@ -5226,10 +5341,41 @@
                     });
                 }
             });
+            
+            // Method 2: Linked cascade fields (separate select fields with cascadeGroup)
+            const cascadeGroups = {};
+            state.fields.forEach(f => {
+                if (f.cascadeGroup) {
+                    if (!cascadeGroups[f.cascadeGroup]) {
+                        cascadeGroups[f.cascadeGroup] = [];
+                    }
+                    cascadeGroups[f.cascadeGroup].push(f);
+                }
+            });
+            
+            Object.keys(cascadeGroups).forEach(groupId => {
+                const fields = cascadeGroups[groupId].sort((a, b) => a.cascadeLevel - b.cascadeLevel);
+                const firstField = fields[0];
+                
+                if (!firstField || !firstField.cascadeData) return;
+                
+                const firstSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="0"]`);
+                if (firstSelect && firstSelect.options.length <= 1) {
+                    const column = firstField.cascadeColumn;
+                    const uniqueValues = [...new Set(firstField.cascadeData.map(row => row[column]).filter(Boolean))].sort();
+                    
+                    uniqueValues.forEach(val => {
+                        const option = document.createElement('option');
+                        option.value = val;
+                        option.textContent = val;
+                        firstSelect.appendChild(option);
+                    });
+                }
+            });
         }
         
-        // Update cascade when selection changes
-        window.updateCascade = function(select) {
+        // Handle cascade dropdown selection (cascade-container method)
+        window.handleCascadeSelect = function(select) {
             const container = select.closest('.cascade-container');
             const cascadeId = container.dataset.cascadeId;
             const field = state.fields.find(f => f.id === cascadeId);
@@ -5239,9 +5385,8 @@
             const level = parseInt(select.dataset.level);
             const selectedValue = select.value;
             
-            // Clear and disable all subsequent dropdowns
             for (let i = level + 1; i < columns.length; i++) {
-                const nextSelect = container.querySelector(`[data-level="${i}"]`);
+                const nextSelect = container.querySelector(`select[data-level="${i}"]`);
                 if (nextSelect) {
                     nextSelect.innerHTML = `<option value="">-- Select ${columns[i]} --</option>`;
                     nextSelect.disabled = true;
@@ -5249,29 +5394,25 @@
                 }
             }
             
-            // Clear hidden input
             const hiddenInput = container.querySelector('input[type="hidden"]');
             if (hiddenInput) hiddenInput.value = '';
             
             if (!selectedValue) return;
             
-            // Build filter based on all selections up to current level
             const filters = {};
             for (let i = 0; i <= level; i++) {
-                const sel = container.querySelector(`[data-level="${i}"]`);
+                const sel = container.querySelector(`select[data-level="${i}"]`);
                 if (sel && sel.value) {
                     filters[columns[i]] = sel.value;
                 }
             }
             
-            // Filter data based on current selections
             const filteredData = field.cascadeData.filter(row => {
                 return Object.keys(filters).every(col => row[col] === filters[col]);
             });
             
-            // If there's a next level, populate it
             if (level + 1 < columns.length) {
-                const nextSelect = container.querySelector(`[data-level="${level + 1}"]`);
+                const nextSelect = container.querySelector(`select[data-level="${level + 1}"]`);
                 if (nextSelect) {
                     const nextColumn = columns[level + 1];
                     const uniqueValues = [...new Set(filteredData.map(row => row[nextColumn]).filter(Boolean))].sort();
@@ -5287,25 +5428,109 @@
                 }
             }
             
-            // If this is the last level or all levels are filled, set the hidden input value
             const valueColumn = container.dataset.valueColumn;
-            if (level === columns.length - 1 || filteredData.length === 1) {
-                // Check if all levels have values
-                let allFilled = true;
-                for (let i = 0; i < columns.length; i++) {
-                    const sel = container.querySelector(`[data-level="${i}"]`);
-                    if (!sel || !sel.value) {
-                        allFilled = false;
-                        break;
-                    }
+            if (level === columns.length - 1 && filteredData.length > 0) {
+                const value = filteredData[0][valueColumn] || filteredData[0][columns[columns.length - 1]];
+                if (hiddenInput) hiddenInput.value = value;
+            }
+        };
+        
+        // Handle linked cascade field change (separate select fields method)
+        window.handleCascadeChange = function(select) {
+            const groupId = select.dataset.cascadeGroup;
+            const level = parseInt(select.dataset.cascadeLevel);
+            const selectedValue = select.value;
+            
+            // Find all fields in this cascade group
+            const groupFields = state.fields.filter(f => f.cascadeGroup === groupId).sort((a, b) => a.cascadeLevel - b.cascadeLevel);
+            const firstField = groupFields[0];
+            
+            if (!firstField || !firstField.cascadeData) return;
+            
+            const cascadeData = firstField.cascadeData;
+            
+            // Clear and disable all subsequent dropdowns
+            for (let i = level + 1; i < groupFields.length; i++) {
+                const nextSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${i}"]`);
+                if (nextSelect) {
+                    const col = groupFields[i].cascadeColumn;
+                    nextSelect.innerHTML = `<option value="">-- Select ${col} --</option>`;
+                    nextSelect.disabled = true;
+                    nextSelect.value = '';
                 }
-                
-                if (allFilled && filteredData.length > 0) {
-                    const value = filteredData[0][valueColumn] || filteredData[0][columns[columns.length - 1]];
-                    if (hiddenInput) hiddenInput.value = value;
+            }
+            
+            if (!selectedValue) return;
+            
+            // Build filter based on all selections up to current level
+            const filters = {};
+            for (let i = 0; i <= level; i++) {
+                const sel = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${i}"]`);
+                if (sel && sel.value) {
+                    filters[groupFields[i].cascadeColumn] = sel.value;
+                }
+            }
+            
+            // Filter data based on current selections
+            const filteredData = cascadeData.filter(row => {
+                return Object.keys(filters).every(col => row[col] === filters[col]);
+            });
+            
+            // If there's a next level, populate it
+            if (level + 1 < groupFields.length) {
+                const nextField = groupFields[level + 1];
+                const nextSelect = document.querySelector(`select[data-cascade-group="${groupId}"][data-cascade-level="${level + 1}"]`);
+                if (nextSelect) {
+                    const nextColumn = nextField.cascadeColumn;
+                    const uniqueValues = [...new Set(filteredData.map(row => row[nextColumn]).filter(Boolean))].sort();
+                    
+                    uniqueValues.forEach(val => {
+                        const option = document.createElement('option');
+                        option.value = val;
+                        option.textContent = val;
+                        nextSelect.appendChild(option);
+                    });
+                    
+                    nextSelect.disabled = false;
                 }
             }
         };
+        
+        // Run all calculations
+        function runCalculations() {
+            const form = document.getElementById('viewerForm');
+            if (!form) return;
+            
+            const calcFields = state.fields.filter(f => f.type === 'calculation' && f.formula);
+            
+            calcFields.forEach(field => {
+                const input = form.querySelector(`input[name="${field.name}"]`);
+                if (!input) return;
+                
+                let formula = field.formula;
+                
+                // Replace field references with values
+                const fieldRefs = formula.match(/\{([^}]+)\}/g) || [];
+                fieldRefs.forEach(ref => {
+                    const fieldName = ref.replace(/[{}]/g, '');
+                    const fieldInput = form.querySelector(`[name="${fieldName}"]`);
+                    const value = fieldInput ? (parseFloat(fieldInput.value) || 0) : 0;
+                    formula = formula.replace(ref, value);
+                });
+                
+                // Evaluate the formula safely
+                try {
+                    // Only allow numbers, operators, parentheses, decimal, and spaces
+                    const safeFormula = formula.replace(/[^0-9+\-*/().%\s]/g, '');
+                    if (safeFormula.trim()) {
+                        const result = Function('"use strict"; return (' + safeFormula + ')')();
+                        input.value = isNaN(result) || !isFinite(result) ? '' : Math.round(result * 100) / 100;
+                    }
+                } catch (err) {
+                    input.value = 'Error';
+                }
+            });
+        }
 
         window.captureGPS = function(btn) {
             const container = btn.parentElement;
