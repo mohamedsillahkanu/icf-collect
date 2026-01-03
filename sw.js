@@ -1,5 +1,5 @@
 // ICF Collect Service Worker for Offline Support
-const CACHE_NAME = 'icf-collect-v9';
+const CACHE_NAME = 'icf-collect-v10';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
