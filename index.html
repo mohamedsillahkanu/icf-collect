@@ -4403,12 +4403,13 @@
         
         // Save large cascade data to Google Sheets cloud storage
         async function saveCascadeDataToCloud(cascadeId, compressedData, columns) {
-            if (!state.sheets.scriptUrl) {
+            const scriptUrl = CONFIG.AUTH_SCRIPT_URL;
+            if (!scriptUrl) {
                 throw new Error('No script URL configured');
             }
             
             try {
-                const response = await fetch(state.sheets.scriptUrl, {
+                const response = await fetch(scriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({
@@ -4445,13 +4446,14 @@
                 }
             }
             
-            if (!state.sheets.scriptUrl) {
+            const scriptUrl = CONFIG.AUTH_SCRIPT_URL;
+            if (!scriptUrl) {
                 console.log('No script URL, cannot load cascade data');
                 return null;
             }
             
             try {
-                const response = await fetch(state.sheets.scriptUrl + '?' + new URLSearchParams({
+                const response = await fetch(scriptUrl + '?' + new URLSearchParams({
                     action: 'getCascadeData',
                     cascadeId: cascadeId
                 }));
@@ -4927,6 +4929,17 @@
             }
             
             renderFormViewer();
+            
+            // Show install banner for shared forms too
+            setTimeout(() => {
+                if (!isInstalledPWA()) {
+                    if (deferredPrompt) {
+                        showInstallButton();
+                    } else {
+                        showUniversalInstallButton();
+                    }
+                }
+            }, 2000);
         }
 
         function renderFormViewer() {
