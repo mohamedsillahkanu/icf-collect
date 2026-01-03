@@ -4,8 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ICF Collect | DHIS2 & Google Sheets Integration</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#004080">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://icf-sl.com/logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        // Register Service Worker for offline support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed:', err));
+            });
+        }
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Oswald', Arial, sans-serif; background: #f5f5f5; min-height: 100vh; }
@@ -671,6 +686,11 @@
     </div>
 
     <div class="notification" id="notification"></div>
+    
+    <!-- Offline Indicator -->
+    <div id="offlineIndicator" style="display:none;position:fixed;top:0;left:0;right:0;background:#dc3545;color:white;padding:8px;text-align:center;font-size:12px;font-weight:600;z-index:10000;">
+        ⚠️ You are offline - Data will sync when back online
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -914,10 +934,39 @@
                     const binData = new Uint8Array(charData);
                     const decompressed = pako.inflate(binData, { to: 'string' });
                     const data = JSON.parse(decompressed);
+                    
+                    // Cache the form data for offline use
+                    const cacheKey = 'shared_form_' + window.location.search.substring(0, 100);
+                    try {
+                        localStorage.setItem(cacheKey, decompressed);
+                        console.log('Shared form cached for offline use');
+                    } catch (e) {
+                        console.log('Could not cache form data');
+                    }
+                    
                     state.isSharedMode = true;
                     renderSharedForm(data);
                     return;
-                } catch (err) { console.error('Decode error:', err); }
+                } catch (err) { 
+                    console.error('Decode error:', err);
+                    
+                    // Try to load from cache if offline
+                    if (!navigator.onLine) {
+                        const cacheKey = 'shared_form_' + window.location.search.substring(0, 100);
+                        const cached = localStorage.getItem(cacheKey);
+                        if (cached) {
+                            try {
+                                const data = JSON.parse(cached);
+                                console.log('Loaded form from offline cache');
+                                state.isSharedMode = true;
+                                renderSharedForm(data);
+                                return;
+                            } catch (e) {
+                                console.error('Cache parse error:', e);
+                            }
+                        }
+                    }
+                }
             }
             
             loadFromStorage();
@@ -5271,24 +5320,33 @@
             const form = document.getElementById('viewerForm');
             if (!form) return;
             
-            const data = { 
-                _draftId: Date.now(), 
-                _savedAt: new Date().toISOString()
-            };
-            new FormData(form).forEach((v, k) => data[k] = v);
+            // Check if any field has data first
+            const formData = new FormData(form);
+            const tempData = {};
+            formData.forEach((v, k) => tempData[k] = v);
             
-            // Check if any field has data
-            const hasData = state.fields.some(f => f.type !== 'section' && data[f.name]);
+            const hasData = state.fields.some(f => f.type !== 'section' && tempData[f.name]);
             if (!hasData) {
                 notify('No data to save as draft', 'info');
                 return;
             }
             
+            // Prompt for draft name
+            const draftName = prompt('Enter a name for this draft:', 'Draft ' + (loadDrafts().length + 1));
+            if (!draftName) return; // User cancelled
+            
+            const data = { 
+                _draftId: Date.now(), 
+                _draftName: draftName.trim(),
+                _savedAt: new Date().toISOString()
+            };
+            formData.forEach((v, k) => data[k] = v);
+            
             const drafts = loadDrafts();
             drafts.push(data);
             saveDrafts(drafts);
             
-            notify('Draft saved!', 'success');
+            notify(`Draft "${draftName}" saved!`, 'success');
             renderDraftsPanel();
             updateDraftsCount();
         };
@@ -5361,18 +5419,20 @@
             let html = '<div class="drafts-list">';
             drafts.forEach(draft => {
                 const savedDate = new Date(draft._savedAt).toLocaleString();
-                // Get first few non-empty field values for preview
+                // Use draft name if available, otherwise show preview
+                const draftName = draft._draftName || 'Unnamed Draft';
+                // Get first few non-empty field values for preview subtitle
                 const preview = state.fields
                     .filter(f => f.type !== 'section' && draft[f.name])
                     .slice(0, 2)
-                    .map(f => `${f.label}: ${String(draft[f.name]).substring(0, 20)}`)
-                    .join(', ') || 'Empty draft';
+                    .map(f => String(draft[f.name]).substring(0, 15))
+                    .join(', ') || '';
                 
                 html += `
                     <div class="draft-item">
                         <div class="draft-info">
-                            <div class="draft-preview">${escapeHtml(preview)}</div>
-                            <div class="draft-date">${savedDate}</div>
+                            <div class="draft-preview" style="font-weight:700;">${escapeHtml(draftName)}</div>
+                            <div class="draft-date">${savedDate}${preview ? ' • ' + escapeHtml(preview) : ''}</div>
                         </div>
                         <div class="draft-actions">
                             <button class="draft-btn load" onclick="loadDraft(${draft._draftId})" title="Load Draft">
@@ -6273,9 +6333,78 @@
             preview.style.display = 'none';
         };
 
+        // Offline detection
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('offlineIndicator');
+            if (indicator) {
+                indicator.style.display = navigator.onLine ? 'none' : 'block';
+            }
+        }
+        
+        window.addEventListener('online', () => {
+            updateOnlineStatus();
+            notify('Back online!', 'success');
+            // Try to sync offline data
+            syncOfflineData();
+        });
+        
+        window.addEventListener('offline', () => {
+            updateOnlineStatus();
+            notify('You are offline - data will be saved locally', 'warning');
+        });
+
+        // PWA Install Prompt
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show install button
+            showInstallButton();
+        });
+        
+        function showInstallButton() {
+            // Add install button to header if not already there
+            if (document.getElementById('installBtn')) return;
+            
+            const header = document.querySelector('.header');
+            if (header) {
+                const installBtn = document.createElement('button');
+                installBtn.id = 'installBtn';
+                installBtn.innerHTML = '📲 Install App';
+                installBtn.style.cssText = 'background:#28a745;color:white;border:none;padding:8px 12px;border-radius:6px;font-family:Oswald;font-size:11px;cursor:pointer;margin-left:10px;';
+                installBtn.onclick = installApp;
+                header.querySelector('.header-right')?.appendChild(installBtn);
+            }
+        }
+        
+        async function installApp() {
+            if (!deferredPrompt) {
+                notify('App already installed or not supported', 'info');
+                return;
+            }
+            
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            
+            if (outcome === 'accepted') {
+                notify('App installed successfully!', 'success');
+                document.getElementById('installBtn')?.remove();
+            }
+            
+            deferredPrompt = null;
+        }
+        
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA installed');
+            document.getElementById('installBtn')?.remove();
+            deferredPrompt = null;
+        });
+
         // Initialize
         init();
         initIcons();
+        updateOnlineStatus();
     </script>
 </body>
 </html>
