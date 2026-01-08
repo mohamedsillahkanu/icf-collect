@@ -4,23 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ICF Collect | DHIS2 & Google Sheets Integration</title>
-    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#004080">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg">
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script>
-        // Register Service Worker for offline support
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('Service Worker registered'))
-                    .catch(err => console.log('Service Worker registration failed:', err));
-            });
-        }
-    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Oswald', Arial, sans-serif; background: #f5f5f5; min-height: 100vh; }
@@ -448,7 +435,6 @@
             <button class="header-btn" onclick="previewForm()"><span data-icon="eye" data-size="14"></span> Preview</button>
             <button class="header-btn dhis2" onclick="openDhis2Config()"><span data-icon="link" data-size="14"></span> DHIS2</button>
             <button class="header-btn primary" onclick="shareForm()"><span data-icon="share-2" data-size="14"></span> Share</button>
-            <button class="header-btn" id="headerInstallBtn" onclick="installApp()" style="background:#28a745;display:none;"><span data-icon="download" data-size="14"></span> Install</button>
             <button class="header-btn danger" onclick="logout()"><span data-icon="log-out" data-size="14"></span> Logout</button>
         </div>
     </header>
@@ -4996,13 +4982,6 @@
             }
             
             renderFormViewer();
-            
-            // Show install banner for shared forms too (only if direct install available)
-            setTimeout(() => {
-                if (!isInstalledPWA() && deferredPrompt) {
-                    showInstallButton();
-                }
-            }, 2000);
         }
 
         function renderFormViewer() {
@@ -6081,8 +6060,85 @@
             }
         }
         
+        // Validate required fields on current page
+        function validateCurrentPage(currentPageIndex) {
+            const currentPageEl = document.querySelector(`.form-page[data-page="${currentPageIndex}"]`);
+            if (!currentPageEl) return true;
+            
+            let isValid = true;
+            let firstInvalid = null;
+            
+            // Find all required fields on current page
+            const requiredFields = currentPageEl.querySelectorAll('[required]');
+            
+            requiredFields.forEach(field => {
+                // Skip hidden fields
+                if (field.offsetParent === null) return;
+                
+                // Remove previous error styling
+                field.style.borderColor = '';
+                const errorMsg = field.parentElement.querySelector('.field-error');
+                if (errorMsg) errorMsg.remove();
+                
+                let fieldValue = '';
+                if (field.type === 'checkbox') {
+                    // For checkboxes, check if at least one with same name is checked
+                    const name = field.name;
+                    const checkboxes = currentPageEl.querySelectorAll(`input[name="${name}"]`);
+                    const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+                    if (!anyChecked) {
+                        isValid = false;
+                        if (!firstInvalid) firstInvalid = field;
+                        showFieldError(field, 'Please select at least one option');
+                    }
+                    return;
+                } else if (field.type === 'radio') {
+                    // For radio buttons, check if any with same name is selected
+                    const name = field.name;
+                    const radios = currentPageEl.querySelectorAll(`input[name="${name}"]`);
+                    const anySelected = Array.from(radios).some(r => r.checked);
+                    if (!anySelected) {
+                        isValid = false;
+                        if (!firstInvalid) firstInvalid = field;
+                        showFieldError(field, 'Please select an option');
+                    }
+                    return;
+                } else {
+                    fieldValue = field.value.trim();
+                }
+                
+                if (!fieldValue) {
+                    isValid = false;
+                    if (!firstInvalid) firstInvalid = field;
+                    showFieldError(field, 'This field is required');
+                }
+            });
+            
+            // Scroll to first invalid field
+            if (firstInvalid) {
+                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstInvalid.focus();
+            }
+            
+            return isValid;
+        }
+        
+        function showFieldError(field, message) {
+            field.style.borderColor = '#dc3545';
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'field-error';
+            errorDiv.style.cssText = 'color:#dc3545;font-size:12px;margin-top:4px;';
+            errorDiv.textContent = message;
+            field.parentElement.appendChild(errorDiv);
+        }
+        
         // Navigate to next visible page
         window.goToNextPage = function(currentPage) {
+            // Validate current page before moving to next
+            if (!validateCurrentPage(currentPage)) {
+                notify('Please fill in all required fields', 'error');
+                return;
+            }
             goToPage(currentPage + 1, 1);
         };
         
@@ -6428,113 +6484,6 @@
             updateOnlineStatus();
             notify('You are offline - data will be saved locally', 'warning');
         });
-
-        // PWA Install
-        let deferredPrompt;
-        
-        // Detect if running as installed PWA
-        function isInstalledPWA() {
-            return window.matchMedia('(display-mode: standalone)').matches || 
-                   window.navigator.standalone === true;
-        }
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            console.log('beforeinstallprompt fired - install available');
-            showInstallButton();
-        });
-        
-        function showInstallButton() {
-            console.log('showInstallButton called, deferredPrompt:', !!deferredPrompt, 'isInstalled:', isInstalledPWA());
-            
-            // Show header Install button
-            const headerBtn = document.getElementById('headerInstallBtn');
-            if (headerBtn && deferredPrompt && !isInstalledPWA()) {
-                headerBtn.style.display = '';
-                console.log('Header install button shown');
-            }
-            
-            if (isInstalledPWA()) return;
-            if (document.getElementById('installBanner')) return;
-            if (!deferredPrompt) return;
-            if (sessionStorage.getItem('installBannerDismissed')) return;
-            
-            // Create popup banner at bottom of screen
-            const banner = document.createElement('div');
-            banner.id = 'installBanner';
-            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#004080 0%,#001a33 100%);color:white;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:15px;z-index:10000;box-shadow:0 -4px 20px rgba(0,0,0,0.3);animation:slideUp 0.3s ease-out;';
-            banner.innerHTML = `
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" style="width:45px;height:45px;border-radius:10px;border:2px solid white;">
-                    <div>
-                        <div style="font-weight:700;font-size:14px;">Install ICF Collect</div>
-                        <div style="font-size:11px;opacity:0.9;">Works offline • Faster • Home screen</div>
-                    </div>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <button onclick="installApp()" style="background:#28a745;color:white;border:none;padding:10px 20px;border-radius:6px;font-family:Oswald;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
-                        <span data-icon="download" data-size="14"></span> Install
-                    </button>
-                    <button onclick="dismissInstallBanner()" style="background:transparent;color:white;border:none;padding:8px;cursor:pointer;opacity:0.7;font-size:18px;">✕</button>
-                </div>
-            `;
-            
-            // Add animation style
-            if (!document.getElementById('installBannerStyle')) {
-                const style = document.createElement('style');
-                style.id = 'installBannerStyle';
-                style.textContent = '@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }';
-                document.head.appendChild(style);
-            }
-            
-            document.body.appendChild(banner);
-            initIcons();
-        }
-        
-        window.dismissInstallBanner = function() {
-            const banner = document.getElementById('installBanner');
-            if (banner) {
-                banner.style.animation = 'slideUp 0.3s ease-out reverse';
-                setTimeout(() => banner.remove(), 300);
-                sessionStorage.setItem('installBannerDismissed', 'true');
-            }
-        };
-        
-        async function installApp() {
-            console.log('installApp called, deferredPrompt:', !!deferredPrompt);
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log('Install outcome:', outcome);
-                if (outcome === 'accepted') {
-                    notify('App installed successfully!', 'success');
-                    document.getElementById('installBanner')?.remove();
-                    const headerBtn = document.getElementById('headerInstallBtn');
-                    if (headerBtn) headerBtn.style.display = 'none';
-                }
-                deferredPrompt = null;
-            } else {
-                notify('Install not available. Use Chrome or Edge browser.', 'info');
-            }
-        }
-        
-        
-        window.addEventListener('appinstalled', () => {
-            console.log('PWA installed');
-            document.getElementById('installBanner')?.remove();
-            const headerBtn = document.getElementById('headerInstallBtn');
-            if (headerBtn) headerBtn.style.display = 'none';
-            deferredPrompt = null;
-            notify('App installed! Find it on your home screen.', 'success');
-        });
-        
-        // Show install button after a short delay (only if direct install available)
-        setTimeout(() => {
-            if (!isInstalledPWA() && deferredPrompt) {
-                showInstallButton();
-            }
-        }, 2000);
 
         // Initialize
         init();
