@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#004080">
     <link rel="apple-touch-icon" href="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg">
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -326,6 +329,17 @@
         .aggregate-table td { border: 1px solid #dee2e6; padding: 10px; }
         .aggregate-table tr:nth-child(even) { background: #f8f9fa; }
         .aggregate-table tr:hover { background: #e8f4fc; }
+        
+        /* GPS Map */
+        .gps-map-container { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border: 2px solid #e9ecef; }
+        .gps-map-container h4 { color: #004080; font-size: 14px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #004080; display: flex; align-items: center; gap: 8px; }
+        #gpsMap { height: 400px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .map-controls { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .map-legend { background: white; padding: 10px; border-radius: 6px; font-size: 11px; box-shadow: 0 1px 5px rgba(0,0,0,0.2); }
+        .map-legend-item { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+        .map-legend-color { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.3); }
+        .leaflet-popup-content { font-family: 'Oswald', Arial, sans-serif; font-size: 12px; }
+        .leaflet-popup-content strong { color: #004080; }
         
         /* Inline Icons */
         .inline-icon { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 4px; }
@@ -899,7 +913,10 @@
                 formId: '', // Unique form identifier
                 logo: CONFIG.LOGO_URL,
                 aggregateColumn: '', // Legacy single column (for backward compatibility)
-                aggregateColumns: [] // Multiple columns for grouping in aggregate view
+                aggregateColumns: [], // Multiple columns for grouping in aggregate view
+                boundaryGeoJSON: null, // GeoJSON data for map boundary
+                boundaryName: '', // Name of uploaded boundary file
+                gpsField: '' // Which GPS field to use for mapping
             },
             sheets: {
                 scriptUrl: CONFIG.AUTH_SCRIPT_URL,
@@ -6281,6 +6298,8 @@
                 </div>
                 
                 ${chartsHtml || '<div class="chart-container"><p style="text-align:center;color:#868e96;padding:30px;"><span class="inline-icon">' + getIcon('bar-chart-3', 18) + '</span> Add categorical fields for charts</p></div>'}
+                
+                ${renderGpsMapSection(filteredData)}
             `;
             
             // Render charts
@@ -6330,6 +6349,9 @@
                         });
                     }
                 });
+                
+                // Initialize GPS map after charts
+                initGpsMap(filteredData);
             }, 100);
             
             } catch (err) {
@@ -6337,6 +6359,427 @@
                 container.innerHTML = `<div style="text-align:center;padding:40px;color:#dc3545;"><p>Error loading dashboard</p><p style="font-size:12px;">${escapeHtml(err.message)}</p></div>`;
             }
         }
+
+        // ==================== GPS MAP FUNCTIONS ====================
+        let gpsMapInstance = null;
+        let gpsMarkersLayer = null;
+        let boundaryLayer = null;
+        
+        function renderGpsMapSection(filteredData) {
+            // Find GPS fields in the form
+            const gpsFields = state.fields.filter(f => f.type === 'gps');
+            
+            if (gpsFields.length === 0) {
+                return ''; // No GPS fields, don't show map section
+            }
+            
+            // Count records with GPS data
+            const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
+            const recordsWithGps = filteredData.filter(d => {
+                const gpsValue = d[selectedGpsField];
+                return gpsValue && parseGpsCoordinates(gpsValue);
+            }).length;
+            
+            const gpsFieldOptions = gpsFields.map(f => 
+                `<option value="${f.name}" ${selectedGpsField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`
+            ).join('');
+            
+            return `
+                <div class="gps-map-container">
+                    <h4><span class="inline-icon">${getIcon('map-pin', 16)}</span> GPS Points Map (${recordsWithGps} locations)</h4>
+                    
+                    <div style="display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap;align-items:center;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:bold;">GPS Field:</label>
+                            <select class="filter-select" onchange="setGpsField(this.value)" style="min-width:150px;">
+                                ${gpsFieldOptions}
+                            </select>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:11px;font-weight:bold;">Boundary:</label>
+                            <input type="file" id="boundaryFileInput" accept=".json,.geojson,.zip" onchange="loadBoundaryFile(this)" style="font-size:11px;">
+                            ${state.settings.boundaryName ? `<span style="font-size:10px;color:#28a745;">✓ ${escapeHtml(state.settings.boundaryName)}</span>` : ''}
+                        </div>
+                        ${state.settings.boundaryGeoJSON ? `<button onclick="clearBoundary()" style="padding:4px 8px;font-size:10px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">Remove Boundary</button>` : ''}
+                    </div>
+                    
+                    <div id="gpsMap"></div>
+                    
+                    <div class="map-controls">
+                        <button class="modal-btn" onclick="zoomToAllPoints()" style="font-size:11px;padding:8px 12px;">
+                            <span class="inline-icon">${getIcon('maximize-2', 12)}</span> Fit All Points
+                        </button>
+                        <button class="modal-btn success" onclick="downloadGeoJSON()" style="font-size:11px;padding:8px 12px;">
+                            <span class="inline-icon">${getIcon('download', 12)}</span> Download GeoJSON
+                        </button>
+                        <button class="modal-btn" onclick="downloadKML()" style="font-size:11px;padding:8px 12px;background:#17a2b8;color:white;">
+                            <span class="inline-icon">${getIcon('download', 12)}</span> Download KML
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function parseGpsCoordinates(gpsString) {
+            if (!gpsString) return null;
+            
+            // Handle different GPS formats
+            // Format 1: "lat,lng" or "lat, lng"
+            // Format 2: "lat,lng,accuracy" 
+            // Format 3: JSON object {lat, lng}
+            
+            try {
+                if (typeof gpsString === 'object') {
+                    if (gpsString.lat && gpsString.lng) {
+                        return { lat: parseFloat(gpsString.lat), lng: parseFloat(gpsString.lng) };
+                    }
+                }
+                
+                const str = String(gpsString).trim();
+                
+                // Try JSON parse
+                if (str.startsWith('{')) {
+                    const obj = JSON.parse(str);
+                    if (obj.lat && obj.lng) {
+                        return { lat: parseFloat(obj.lat), lng: parseFloat(obj.lng) };
+                    }
+                }
+                
+                // Try comma-separated
+                const parts = str.split(',').map(p => parseFloat(p.trim()));
+                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    return { lat: parts[0], lng: parts[1] };
+                }
+            } catch (e) {
+                console.log('Failed to parse GPS:', gpsString);
+            }
+            
+            return null;
+        }
+        
+        function initGpsMap(filteredData) {
+            const mapContainer = document.getElementById('gpsMap');
+            if (!mapContainer) return;
+            
+            // Check if Leaflet is available
+            if (typeof L === 'undefined') {
+                mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;">Map unavailable (Leaflet not loaded)</p>';
+                return;
+            }
+            
+            // Destroy existing map
+            if (gpsMapInstance) {
+                gpsMapInstance.remove();
+                gpsMapInstance = null;
+            }
+            
+            // Get GPS field to use
+            const gpsFields = state.fields.filter(f => f.type === 'gps');
+            const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
+            
+            if (!selectedGpsField) {
+                mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;">No GPS field configured</p>';
+                return;
+            }
+            
+            // Collect GPS points
+            const points = [];
+            filteredData.forEach((record, idx) => {
+                const coords = parseGpsCoordinates(record[selectedGpsField]);
+                if (coords) {
+                    points.push({
+                        ...coords,
+                        record: record,
+                        index: idx
+                    });
+                }
+            });
+            
+            if (points.length === 0 && !state.settings.boundaryGeoJSON) {
+                mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map-pin', 16) + '</span> No GPS data available. Collect data with GPS field to see points on map.</p>';
+                return;
+            }
+            
+            // Initialize map - default to Sierra Leone center if no points
+            const defaultCenter = points.length > 0 ? [points[0].lat, points[0].lng] : [8.4606, -11.7799];
+            gpsMapInstance = L.map('gpsMap').setView(defaultCenter, 8);
+            
+            // Add tile layer (OpenStreetMap)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(gpsMapInstance);
+            
+            // Add boundary layer if exists
+            if (state.settings.boundaryGeoJSON) {
+                try {
+                    boundaryLayer = L.geoJSON(state.settings.boundaryGeoJSON, {
+                        style: {
+                            color: '#004080',
+                            weight: 2,
+                            fillColor: '#004080',
+                            fillOpacity: 0.1
+                        },
+                        onEachFeature: function(feature, layer) {
+                            if (feature.properties) {
+                                const props = Object.entries(feature.properties)
+                                    .filter(([k, v]) => v !== null && v !== '')
+                                    .map(([k, v]) => `<strong>${k}:</strong> ${v}`)
+                                    .join('<br>');
+                                if (props) {
+                                    layer.bindPopup(props);
+                                }
+                            }
+                        }
+                    }).addTo(gpsMapInstance);
+                    
+                    // Fit to boundary
+                    gpsMapInstance.fitBounds(boundaryLayer.getBounds());
+                } catch (e) {
+                    console.error('Error loading boundary:', e);
+                }
+            }
+            
+            // Add markers layer
+            gpsMarkersLayer = L.layerGroup().addTo(gpsMapInstance);
+            
+            // Get color field for differentiation
+            const colorField = state.settings.aggregateColumns?.[0] || state.settings.aggregateColumn;
+            const colorMap = {};
+            const colors = ['#dc3545', '#28a745', '#007bff', '#ffc107', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c', '#6c757d'];
+            let colorIdx = 0;
+            
+            // Add markers
+            points.forEach(point => {
+                // Get color based on category
+                let markerColor = '#004080';
+                if (colorField && point.record[colorField]) {
+                    const val = point.record[colorField];
+                    if (!colorMap[val]) {
+                        colorMap[val] = colors[colorIdx % colors.length];
+                        colorIdx++;
+                    }
+                    markerColor = colorMap[val];
+                }
+                
+                // Create custom marker icon
+                const markerIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background:${markerColor};width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>`,
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+                
+                const marker = L.marker([point.lat, point.lng], { icon: markerIcon });
+                
+                // Build popup content
+                let popupContent = '<div style="max-width:250px;max-height:200px;overflow-y:auto;">';
+                popupContent += `<strong style="color:#004080;">Record #${point.index + 1}</strong><br>`;
+                popupContent += `<small>${point.record._timestamp || 'No timestamp'}</small><hr style="margin:5px 0;">`;
+                
+                // Add first few fields
+                state.fields.filter(f => f.type !== 'section' && f.type !== 'gps').slice(0, 5).forEach(field => {
+                    const val = point.record[field.name];
+                    if (val) {
+                        popupContent += `<strong>${escapeHtml(field.label)}:</strong> ${escapeHtml(String(val))}<br>`;
+                    }
+                });
+                
+                popupContent += '</div>';
+                marker.bindPopup(popupContent);
+                
+                gpsMarkersLayer.addLayer(marker);
+            });
+            
+            // Add legend if color field is used
+            if (colorField && Object.keys(colorMap).length > 0) {
+                const legend = L.control({ position: 'bottomright' });
+                legend.onAdd = function() {
+                    const div = L.DomUtil.create('div', 'map-legend');
+                    div.innerHTML = '<strong style="font-size:10px;display:block;margin-bottom:5px;">' + escapeHtml(state.fields.find(f => f.name === colorField)?.label || colorField) + '</strong>';
+                    Object.entries(colorMap).forEach(([val, color]) => {
+                        div.innerHTML += `<div class="map-legend-item"><div class="map-legend-color" style="background:${color};"></div><span>${escapeHtml(val)}</span></div>`;
+                    });
+                    return div;
+                };
+                legend.addTo(gpsMapInstance);
+            }
+            
+            // Fit to all points if no boundary
+            if (points.length > 0 && !state.settings.boundaryGeoJSON) {
+                const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
+                gpsMapInstance.fitBounds(bounds, { padding: [20, 20] });
+            }
+        }
+        
+        window.setGpsField = function(fieldName) {
+            state.settings.gpsField = fieldName;
+            saveToStorage();
+            renderDashboard();
+        };
+        
+        window.loadBoundaryFile = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            try {
+                const fileName = file.name.toLowerCase();
+                let geojson;
+                
+                if (fileName.endsWith('.json') || fileName.endsWith('.geojson')) {
+                    // Load GeoJSON directly
+                    const text = await file.text();
+                    geojson = JSON.parse(text);
+                } else if (fileName.endsWith('.zip')) {
+                    // Load shapefile (zip containing .shp, .dbf, etc.)
+                    if (typeof shp === 'undefined') {
+                        notify('Shapefile parser not loaded', 'error');
+                        return;
+                    }
+                    const buffer = await file.arrayBuffer();
+                    geojson = await shp(buffer);
+                } else {
+                    notify('Unsupported file type. Use .geojson, .json, or .zip (shapefile)', 'error');
+                    return;
+                }
+                
+                // Validate GeoJSON
+                if (!geojson || (!geojson.type && !geojson.features)) {
+                    notify('Invalid GeoJSON format', 'error');
+                    return;
+                }
+                
+                // Store boundary
+                state.settings.boundaryGeoJSON = geojson;
+                state.settings.boundaryName = file.name;
+                saveToStorage();
+                
+                notify('Boundary loaded: ' + file.name);
+                renderDashboard();
+                
+            } catch (err) {
+                console.error('Error loading boundary:', err);
+                notify('Error loading boundary file: ' + err.message, 'error');
+            }
+        };
+        
+        window.clearBoundary = function() {
+            if (confirm('Remove boundary layer?')) {
+                state.settings.boundaryGeoJSON = null;
+                state.settings.boundaryName = '';
+                saveToStorage();
+                renderDashboard();
+                notify('Boundary removed');
+            }
+        };
+        
+        window.zoomToAllPoints = function() {
+            if (!gpsMapInstance || !gpsMarkersLayer) return;
+            
+            const markers = [];
+            gpsMarkersLayer.eachLayer(m => markers.push(m.getLatLng()));
+            
+            if (markers.length > 0) {
+                const bounds = L.latLngBounds(markers);
+                gpsMapInstance.fitBounds(bounds, { padding: [20, 20] });
+            }
+        };
+        
+        window.downloadGeoJSON = function() {
+            const gpsFields = state.fields.filter(f => f.type === 'gps');
+            const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
+            const filteredData = getFilteredData();
+            
+            const features = [];
+            filteredData.forEach((record, idx) => {
+                const coords = parseGpsCoordinates(record[selectedGpsField]);
+                if (coords) {
+                    const properties = {};
+                    state.fields.filter(f => f.type !== 'section').forEach(field => {
+                        properties[field.label || field.name] = record[field.name] || '';
+                    });
+                    properties['_timestamp'] = record._timestamp || '';
+                    properties['_id'] = record._id || idx;
+                    
+                    features.push({
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [coords.lng, coords.lat]
+                        },
+                        properties: properties
+                    });
+                }
+            });
+            
+            const geojson = {
+                type: 'FeatureCollection',
+                features: features
+            };
+            
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${state.settings.title}_gps_points.geojson`;
+            a.click();
+            URL.revokeObjectURL(url);
+            notify('GeoJSON downloaded!');
+        };
+        
+        window.downloadKML = function() {
+            const gpsFields = state.fields.filter(f => f.type === 'gps');
+            const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
+            const filteredData = getFilteredData();
+            
+            let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+    <name>${escapeHtml(state.settings.title)} GPS Points</name>
+    <description>Exported from ICF Collect</description>
+    <Style id="pointStyle">
+        <IconStyle>
+            <color>ff0000ff</color>
+            <scale>1.0</scale>
+            <Icon><href>http://maps.google.com/mapfiles/kml/paddle/red-circle.png</href></Icon>
+        </IconStyle>
+    </Style>
+`;
+            
+            filteredData.forEach((record, idx) => {
+                const coords = parseGpsCoordinates(record[selectedGpsField]);
+                if (coords) {
+                    const name = record._id || `Point ${idx + 1}`;
+                    let description = '';
+                    state.fields.filter(f => f.type !== 'section' && f.type !== 'gps').slice(0, 10).forEach(field => {
+                        if (record[field.name]) {
+                            description += `${field.label}: ${record[field.name]}\n`;
+                        }
+                    });
+                    
+                    kml += `    <Placemark>
+        <name>${escapeHtml(String(name))}</name>
+        <description><![CDATA[${description}]]></description>
+        <styleUrl>#pointStyle</styleUrl>
+        <Point><coordinates>${coords.lng},${coords.lat},0</coordinates></Point>
+    </Placemark>
+`;
+                }
+            });
+            
+            kml += `</Document>
+</kml>`;
+            
+            const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${state.settings.title}_gps_points.kml`;
+            a.click();
+            URL.revokeObjectURL(url);
+            notify('KML downloaded!');
+        };
+        // ==================== END GPS MAP FUNCTIONS ====================
 
         function showTab(tab, btn) {
             console.log('=== showTab called ===', tab);
