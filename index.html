@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1198,21 +1198,17 @@
                 return [];
             }
             
-            console.log('Fetching data from Google Sheets...');
+            const url = `${scriptUrl}?action=getData&formTitle=${encodeURIComponent(formTitle)}&limit=1000`;
+            console.log('Fetching from:', url);
             
             try {
-                // Use POST like other working functions
-                const response = await fetch(scriptUrl, {
-                    method: 'POST', mode: 'cors', redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'getData',
-                        formTitle: formTitle,
-                        limit: 1000
-                    })
-                });
-                
+                const response = await fetch(url);
                 console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    console.error('HTTP error:', response.status, response.statusText);
+                    return [];
+                }
                 
                 const text = await response.text();
                 console.log('Response text (first 500 chars):', text.substring(0, 500));
