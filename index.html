@@ -829,6 +829,9 @@
         };
 
         // ==================== STORAGE HELPERS ====================
+        // In-memory fallback storage for when localStorage is blocked
+        const memoryStorage = {};
+        
         // Check if localStorage is available
         let storageAvailable = true;
         let storageWarningShown = false;
@@ -840,24 +843,29 @@
             console.warn('localStorage not available:', e.message);
         }
 
-        // Safe localStorage wrapper
+        // Safe localStorage wrapper with in-memory fallback
         const safeStorage = {
             getItem: function(key) {
-                if (!storageAvailable) return null;
+                if (!storageAvailable) {
+                    return memoryStorage[key] || null;
+                }
                 try {
                     return localStorage.getItem(key);
                 } catch (e) {
                     console.warn('Storage read error:', e);
-                    return null;
+                    return memoryStorage[key] || null;
                 }
             },
             setItem: function(key, value) {
+                // Always store in memory as backup
+                memoryStorage[key] = value;
+                
                 if (!storageAvailable) {
                     if (!storageWarningShown) {
                         storageWarningShown = true;
                         setTimeout(() => {
                             if (typeof notify === 'function') {
-                                notify('Storage blocked. Data will not persist. Host file on a web server.', 'error');
+                                notify('⚠️ Storage blocked by browser. Data stored in memory only - will be lost on refresh. Host file on a web server for persistence.', 'warning');
                             }
                         }, 2000);
                     }
@@ -870,6 +878,7 @@
                 }
             },
             removeItem: function(key) {
+                delete memoryStorage[key];
                 if (!storageAvailable) return;
                 try {
                     localStorage.removeItem(key);
@@ -1035,7 +1044,7 @@
                     // Cache the form data for offline use
                     const cacheKey = 'shared_form_' + window.location.search.substring(0, 100);
                     try {
-                        localStorage.setItem(cacheKey, decompressed);
+                        safeStorage.setItem(cacheKey, decompressed);
                         console.log('Shared form cached for offline use');
                     } catch (e) {
                         console.log('Could not cache form data');
@@ -1050,7 +1059,7 @@
                     // Try to load from cache if offline
                     if (!navigator.onLine) {
                         const cacheKey = 'shared_form_' + window.location.search.substring(0, 100);
-                        const cached = localStorage.getItem(cacheKey);
+                        const cached = safeStorage.getItem(cacheKey);
                         if (cached) {
                             try {
                                 const data = JSON.parse(cached);
@@ -1254,13 +1263,13 @@
                 { label: 'Synced', name: '_synced' }
             );
             
-            const offlineData = JSON.parse(localStorage.getItem('icfOfflineData') || '[]');
+            const offlineData = JSON.parse(safeStorage.getItem('icfOfflineData') || '[]');
             offlineData.push({ 
                 formTitle: state.settings.title, 
                 fields: fieldDefs,
                 data: data 
             });
-            localStorage.setItem('icfOfflineData', JSON.stringify(offlineData));
+            safeStorage.setItem('icfOfflineData', JSON.stringify(offlineData));
         }
 
         async function syncOfflineData() {
@@ -1269,7 +1278,7 @@
                 return;
             }
             
-            const offlineData = JSON.parse(localStorage.getItem('icfOfflineData') || '[]');
+            const offlineData = JSON.parse(safeStorage.getItem('icfOfflineData') || '[]');
             if (offlineData.length === 0) {
                 notify('No offline data to sync', 'info');
                 return;
@@ -1316,7 +1325,7 @@
             }
             
             // Save remaining offline data
-            localStorage.setItem('icfOfflineData', JSON.stringify(remaining));
+            safeStorage.setItem('icfOfflineData', JSON.stringify(remaining));
             saveToStorage();
             
             if (synced > 0) {
@@ -1331,7 +1340,7 @@
 
         // Auto-sync when coming online
         window.addEventListener('online', () => {
-            const offlineData = JSON.parse(localStorage.getItem('icfOfflineData') || '[]');
+            const offlineData = JSON.parse(safeStorage.getItem('icfOfflineData') || '[]');
             if (offlineData.length > 0) {
                 notify('Back online! Syncing offline data...', 'info');
                 setTimeout(syncOfflineData, 1000);
@@ -1339,7 +1348,7 @@
         });
 
         function getOfflineCount() {
-            const offlineData = JSON.parse(localStorage.getItem('icfOfflineData') || '[]');
+            const offlineData = JSON.parse(safeStorage.getItem('icfOfflineData') || '[]');
             return offlineData.length;
         }
 
@@ -1586,7 +1595,7 @@
             state.dhis2.periodColumn = document.getElementById('dhis2PeriodColumn').value;
             state.dhis2.orgUnitColumn = document.getElementById('dhis2OrgUnitColumn').value;
             
-            localStorage.setItem('icfDhis2Config', JSON.stringify({
+            safeStorage.setItem('icfDhis2Config', JSON.stringify({
                 url: state.dhis2.url,
                 username: state.dhis2.username,
                 password: state.dhis2.password,
@@ -2936,7 +2945,7 @@
 
         // ==================== AUTH ====================
         function checkAuth() {
-            const saved = localStorage.getItem('icfCollectUser');
+            const saved = safeStorage.getItem('icfCollectUser');
             if (saved) { state.user = JSON.parse(saved); showBuilder(); }
         }
 
@@ -2984,7 +2993,7 @@
                 
                 if (result.success && result.user) {
                     state.user = result.user;
-                    localStorage.setItem('icfCollectUser', JSON.stringify(result.user));
+                    safeStorage.setItem('icfCollectUser', JSON.stringify(result.user));
                     showBuilder();
                 } else {
                     document.getElementById('authError').style.display = 'block';
@@ -2993,11 +3002,11 @@
             } catch (error) {
                 showAuthLoading(false);
                 // Fallback to local storage if offline
-                const users = JSON.parse(localStorage.getItem('icfCollectUsers') || '[]');
+                const users = JSON.parse(safeStorage.getItem('icfCollectUsers') || '[]');
                 const user = users.find(u => u.email === email && u.password === password);
                 if (user) {
                     state.user = user;
-                    localStorage.setItem('icfCollectUser', JSON.stringify(user));
+                    safeStorage.setItem('icfCollectUser', JSON.stringify(user));
                     showBuilder();
                 } else {
                     document.getElementById('authError').style.display = 'block';
@@ -3033,10 +3042,10 @@
                 
                 if (result.success) {
                     // Also save locally for offline
-                    const users = JSON.parse(localStorage.getItem('icfCollectUsers') || '[]');
+                    const users = JSON.parse(safeStorage.getItem('icfCollectUsers') || '[]');
                     if (!users.find(u => u.email === email)) {
                         users.push({ id: result.user?.id || Date.now().toString(), name, email, password });
-                        localStorage.setItem('icfCollectUsers', JSON.stringify(users));
+                        safeStorage.setItem('icfCollectUsers', JSON.stringify(users));
                     }
                     
                     document.getElementById('authSuccess').style.display = 'block';
@@ -3095,7 +3104,7 @@
 
         function logout() {
             state.user = null;
-            localStorage.removeItem('icfCollectUser');
+            safeStorage.removeItem('icfCollectUser');
             document.getElementById('mainContainer').classList.remove('show');
             document.getElementById('authContainer').style.display = 'flex';
         }
@@ -4395,7 +4404,7 @@
 
         // ==================== STORAGE ====================
         function saveToStorage() {
-            localStorage.setItem('icfCollectForm', JSON.stringify({
+            safeStorage.setItem('icfCollectForm', JSON.stringify({
                 fields: state.fields,
                 settings: state.settings,
                 fieldCounter: state.fieldCounter,
@@ -4410,7 +4419,7 @@
         }
 
         function loadFromStorage() {
-            const saved = localStorage.getItem('icfCollectForm');
+            const saved = safeStorage.getItem('icfCollectForm');
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
@@ -4439,7 +4448,7 @@
 
         function loadConfigs() {
             // Load Sheets config
-            const sheetsConfig = localStorage.getItem('icfSheetsConfig');
+            const sheetsConfig = safeStorage.getItem('icfSheetsConfig');
             if (sheetsConfig) {
                 try {
                     const config = JSON.parse(sheetsConfig);
@@ -4448,7 +4457,7 @@
             }
             
             // Load DHIS2 config
-            const dhis2Config = localStorage.getItem('icfDhis2Config');
+            const dhis2Config = safeStorage.getItem('icfDhis2Config');
             if (dhis2Config) {
                 try {
                     const config = JSON.parse(dhis2Config);
@@ -4497,7 +4506,7 @@
         }
 
         function saveFormToList() {
-            const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const forms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
             
             // Use existing formId from state, or find by title, or generate new
             let formId = state.settings.formId;
@@ -4524,7 +4533,7 @@
             };
             if (existingIndex >= 0) forms[existingIndex] = formEntry;
             else forms.push(formEntry);
-            localStorage.setItem('icfCollectForms', JSON.stringify(forms));
+            safeStorage.setItem('icfCollectForms', JSON.stringify(forms));
             
             // Update original title after save
             state.settings.originalTitle = state.settings.title;
@@ -4584,7 +4593,7 @@
         async function syncForms() {
             if (!state.user) return;
             
-            const localForms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const localForms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
             const cloudForms = await loadFormsFromCloud();
             
             // Build cloud forms map for quick lookup
@@ -4611,7 +4620,7 @@
             });
             
             const finalForms = Object.values(mergedForms);
-            localStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
+            safeStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
             
             // Only push forms that are newer locally (in parallel for speed)
             if (formsToUpload.length > 0) {
@@ -4704,14 +4713,14 @@
         async function loadCascadeDataFromCloud(cascadeId, columns) {
             // First check localStorage cache
             const cacheKey = 'cascade_cache_' + cascadeId;
-            const cached = localStorage.getItem(cacheKey);
+            const cached = safeStorage.getItem(cacheKey);
             if (cached) {
                 try {
                     const cachedData = JSON.parse(cached);
                     console.log('Cascade data loaded from cache:', cascadeId, cachedData.data.length, 'rows');
                     return cachedData;
                 } catch (e) {
-                    localStorage.removeItem(cacheKey);
+                    safeStorage.removeItem(cacheKey);
                 }
             }
             
@@ -4739,7 +4748,7 @@
                     // Cache in localStorage for offline use
                     const cacheData = { data: decompressed, columns: cols };
                     try {
-                        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                        safeStorage.setItem(cacheKey, JSON.stringify(cacheData));
                         console.log('Cascade data cached locally');
                     } catch (e) {
                         console.log('Could not cache cascade data (localStorage full?)');
@@ -5001,7 +5010,7 @@
                 const cloudForms = await loadFormsFromCloud();
                 
                 if (cloudForms.length > 0) {
-                    const localForms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+                    const localForms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
                     const mergedForms = {};
                     
                     localForms.forEach(f => { mergedForms[f.id] = f; });
@@ -5012,7 +5021,7 @@
                     });
                     
                     const finalForms = Object.values(mergedForms);
-                    localStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
+                    safeStorage.setItem('icfCollectForms', JSON.stringify(finalForms));
                     
                     // Re-render only if we're still on home page
                     if (document.getElementById('homeContainer').classList.contains('show')) {
@@ -5026,7 +5035,7 @@
         }
         
         function renderHomeContent(synced) {
-            const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const forms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
             const isLoggedIn = !!state.user;
             
             let formsHtml = forms.length === 0 ? `
@@ -5112,7 +5121,7 @@
         }
 
         function editForm(index) {
-            const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const forms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
             const form = forms[index];
             if (!form) return;
             
@@ -5136,7 +5145,7 @@
         }
 
         function deleteForm(index) {
-            const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
+            const forms = JSON.parse(safeStorage.getItem('icfCollectForms') || '[]');
             const form = forms[index];
             if (!form || !confirm(`Delete "${form.title}"?\n\nThis will also delete the data sheet in Google Sheets.`)) return;
             
@@ -5144,7 +5153,7 @@
             deleteFormFromCloud(form.id, form.title);
             
             forms.splice(index, 1);
-            localStorage.setItem('icfCollectForms', JSON.stringify(forms));
+            safeStorage.setItem('icfCollectForms', JSON.stringify(forms));
             showHome();
             notify('Deleted');
         }
@@ -5624,14 +5633,14 @@
         
         function loadDrafts() {
             try {
-                return JSON.parse(localStorage.getItem(getDraftStorageKey()) || '[]');
+                return JSON.parse(safeStorage.getItem(getDraftStorageKey()) || '[]');
             } catch (err) {
                 return [];
             }
         }
         
         function saveDrafts(drafts) {
-            localStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
+            safeStorage.setItem(getDraftStorageKey(), JSON.stringify(drafts));
         }
         
         window.saveDraft = function() {
