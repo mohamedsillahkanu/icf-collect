@@ -895,8 +895,11 @@
             isSharedMode: false,
             settings: {
                 title: 'My Data Collection Form',
+                originalTitle: '', // Track original title for rename detection
+                formId: '', // Unique form identifier
                 logo: CONFIG.LOGO_URL,
-                aggregateColumn: '' // Column used for grouping in aggregate view
+                aggregateColumn: '', // Legacy single column (for backward compatibility)
+                aggregateColumns: [] // Multiple columns for grouping in aggregate view
             },
             sheets: {
                 scriptUrl: CONFIG.AUTH_SCRIPT_URL,
@@ -1076,12 +1079,23 @@
             );
             
             try {
+                // Determine if title was changed
+                const oldFormTitle = state.settings.originalTitle && 
+                                     state.settings.originalTitle !== state.settings.title 
+                                     ? state.settings.originalTitle : null;
+                
                 const payload = {
                     action: 'submit',
                     formTitle: state.settings.title,
+                    formId: state.settings.formId || null,
+                    oldFormTitle: oldFormTitle,
+                    syncSchema: true, // Sync columns with form definition
                     fields: fieldDefs,
                     data: data
                 };
+                
+                // Update original title after successful submit
+                state.settings.originalTitle = state.settings.title;
                 
                 console.log('Payload:', payload);
                 
@@ -2533,19 +2547,25 @@
             const periodColumn = state.dhis2.periodColumn;
             const orgUnitColumn = state.dhis2.orgUnitColumn;
             
-            // Use aggregateColumn from settings, or fall back to orgUnitColumn for DHIS2
-            const aggregateColumn = state.settings.aggregateColumn || orgUnitColumn;
+            // Support both legacy single column and new multi-column
+            let aggregateColumns = state.settings.aggregateColumns || [];
+            if (aggregateColumns.length === 0 && state.settings.aggregateColumn) {
+                aggregateColumns = [state.settings.aggregateColumn];
+            }
+            if (aggregateColumns.length === 0 && orgUnitColumn) {
+                aggregateColumns = [orgUnitColumn];
+            }
             
             // If no aggregation column set, use default grouping by month
-            const useDefaultGrouping = !aggregateColumn && !periodColumn;
+            const useDefaultGrouping = aggregateColumns.length === 0 && !periodColumn;
             
             const grouped = {};
             const data = getFilteredData();
             
             if (data.length === 0) return [];
             
-            // Get field names to skip (period and aggregate column)
-            const skipFields = [periodColumn, aggregateColumn].filter(Boolean);
+            // Get field names to skip (period and aggregate columns)
+            const skipFields = [periodColumn, ...aggregateColumns].filter(Boolean);
             // Field types that cannot be aggregated
             const skipTypes = ['phone', 'gps', 'email', 'text', 'textarea', 'date', 'time'];
             
@@ -2567,8 +2587,13 @@
                         period = `${ts.getFullYear()}${String(ts.getMonth() + 1).padStart(2, '0')}`;
                     }
                     
-                    // Use aggregate column value
-                    groupValue = aggregateColumn ? (record[aggregateColumn] || 'Unknown') : 'All';
+                    // Build composite group value from multiple columns
+                    if (aggregateColumns.length > 0) {
+                        const groupParts = aggregateColumns.map(col => record[col] || 'Unknown');
+                        groupValue = groupParts.join(' | ');
+                    } else {
+                        groupValue = 'All';
+                    }
                     key = `${groupValue}|||${period}`;
                 }
                 
@@ -2578,6 +2603,11 @@
                         _period: period,
                         _count: 0
                     };
+                    
+                    // Add individual group column values for clarity
+                    aggregateColumns.forEach(col => {
+                        grouped[key]['_grp_' + col] = record[col] || 'Unknown';
+                    });
                 }
                 
                 grouped[key]._count++;
@@ -4356,6 +4386,12 @@
                         state.dhis2.dataElements = data.dhis2.dataElements || {};
                     }
                     
+                    // Ensure formId and originalTitle are set
+                    if (!state.settings.formId) {
+                        state.settings.formId = 'form_' + Date.now();
+                    }
+                    state.settings.originalTitle = state.settings.title;
+                    
                     document.getElementById('formTitle').value = state.settings.title;
                     document.getElementById('previewTitle').textContent = state.settings.title;
                 } catch (e) {}
@@ -4403,6 +4439,8 @@
             const title = prompt('Form Name:', 'New Form');
             if (title) {
                 state.settings.title = title;
+                state.settings.originalTitle = title; // Track original title
+                state.settings.formId = 'form_' + Date.now(); // Generate unique ID
                 document.getElementById('formTitle').value = title;
                 document.getElementById('previewTitle').textContent = title;
             }
@@ -4421,9 +4459,18 @@
 
         function saveFormToList() {
             const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
-            const existingIndex = forms.findIndex(f => f.title === state.settings.title);
+            
+            // Use existing formId from state, or find by title, or generate new
+            let formId = state.settings.formId;
+            if (!formId) {
+                const existingForm = forms.find(f => f.title === state.settings.title || f.id === state.settings.formId);
+                formId = existingForm ? existingForm.id : 'form_' + Date.now();
+                state.settings.formId = formId;
+            }
+            
+            const existingIndex = forms.findIndex(f => f.id === formId);
             const formEntry = {
-                id: existingIndex >= 0 ? forms[existingIndex].id : 'form_' + Date.now(),
+                id: formId,
                 title: state.settings.title,
                 fieldCount: state.fields.filter(f => f.type !== 'section').length,
                 updatedAt: new Date().toISOString(),
@@ -4439,6 +4486,9 @@
             if (existingIndex >= 0) forms[existingIndex] = formEntry;
             else forms.push(formEntry);
             localStorage.setItem('icfCollectForms', JSON.stringify(forms));
+            
+            // Update original title after save
+            state.settings.originalTitle = state.settings.title;
             
             // Also save to cloud if connected
             saveFormToCloud(formEntry);
@@ -4534,7 +4584,7 @@
         }
         
         // Delete form from cloud
-        async function deleteFormFromCloud(formId) {
+        async function deleteFormFromCloud(formId, formTitle) {
             if (!state.sheets.scriptUrl || !state.user) return;
             
             try {
@@ -4544,9 +4594,12 @@
                     body: new URLSearchParams({
                         action: 'deleteForm',
                         email: state.user.email,
-                        formId: formId
+                        formId: formId,
+                        formTitle: formTitle || '', // Also delete the data sheet
+                        deleteSheet: 'true'
                     })
                 });
+                console.log('Form and sheet deleted from cloud');
             } catch (err) {
                 console.error('Cloud delete error:', err);
             }
@@ -5046,10 +5099,10 @@
         function deleteForm(index) {
             const forms = JSON.parse(localStorage.getItem('icfCollectForms') || '[]');
             const form = forms[index];
-            if (!form || !confirm(`Delete "${form.title}"?`)) return;
+            if (!form || !confirm(`Delete "${form.title}"?\n\nThis will also delete the data sheet in Google Sheets.`)) return;
             
-            // Delete from cloud
-            deleteFormFromCloud(form.id);
+            // Delete from cloud (form definition AND data sheet)
+            deleteFormFromCloud(form.id, form.title);
             
             forms.splice(index, 1);
             localStorage.setItem('icfCollectForms', JSON.stringify(forms));
@@ -5832,18 +5885,30 @@
             const aggregatableFields = state.fields.filter(f => 
                 ['select', 'radio', 'yesno', 'text'].includes(f.type) && f.type !== 'section'
             );
+            const selectedColumns = state.settings.aggregateColumns || [];
             const aggregateColumnHtml = `
                 <div class="config-section" style="margin-bottom:15px;padding:12px;">
-                    <div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span class="inline-icon">${getIcon('layers', 14)}</span>
-                            <strong style="font-size:11px;">Aggregate By:</strong>
-                            <select class="filter-select" style="min-width:150px;" onchange="setAggregateColumn(this.value)">
-                                <option value="">-- Select Column --</option>
-                                ${aggregatableFields.map(f => `<option value="${f.name}" ${state.settings.aggregateColumn === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
-                            </select>
+                    <div style="display:flex;align-items:flex-start;gap:15px;flex-wrap:wrap;">
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <span class="inline-icon">${getIcon('layers', 14)}</span>
+                                <strong style="font-size:11px;">Aggregate By (select one or more):</strong>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;max-width:500px;">
+                                ${aggregatableFields.map(f => `
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:${selectedColumns.includes(f.name) ? '#004080' : '#f1f3f5'};color:${selectedColumns.includes(f.name) ? '#fff' : '#333'};border-radius:4px;cursor:pointer;font-size:11px;">
+                                        <input type="checkbox" value="${f.name}" ${selectedColumns.includes(f.name) ? 'checked' : ''} onchange="toggleAggregateColumn('${f.name}')" style="margin:0;">
+                                        ${escapeHtml(f.label)}
+                                    </label>
+                                `).join('')}
+                            </div>
                         </div>
-                        ${state.settings.aggregateColumn ? `<span style="font-size:10px;color:#28a745;"><span class="inline-icon">${getIcon('check-circle', 12)}</span> Grouping by: ${escapeHtml(aggregatableFields.find(f => f.name === state.settings.aggregateColumn)?.label || state.settings.aggregateColumn)}</span>` : '<span style="font-size:10px;color:#868e96;">Select a column to enable aggregate view</span>'}
+                        <div style="font-size:10px;color:#28a745;">
+                            ${selectedColumns.length > 0 ? `<span class="inline-icon">${getIcon('check-circle', 12)}</span> Grouping by: ${selectedColumns.map(c => {
+                                const field = aggregatableFields.find(f => f.name === c);
+                                return field ? field.label : c;
+                            }).join(' + ')}` : '<span style="color:#868e96;">Select columns to group data</span>'}
+                        </div>
                     </div>
                 </div>
             `;
@@ -5888,7 +5953,32 @@
         };
         
         window.setAggregateColumn = function(columnName) {
-            state.settings.aggregateColumn = columnName;
+            // Legacy function - now uses array
+            state.settings.aggregateColumns = columnName ? [columnName] : [];
+            state.settings.aggregateColumn = columnName; // Keep for backward compatibility
+            saveToStorage();
+            renderDataContent();
+            renderDashboard();
+        };
+        
+        window.toggleAggregateColumn = function(columnName) {
+            // Initialize array if needed
+            if (!state.settings.aggregateColumns) {
+                state.settings.aggregateColumns = [];
+            }
+            
+            const index = state.settings.aggregateColumns.indexOf(columnName);
+            if (index >= 0) {
+                // Remove column
+                state.settings.aggregateColumns.splice(index, 1);
+            } else {
+                // Add column
+                state.settings.aggregateColumns.push(columnName);
+            }
+            
+            // Update legacy single column (use first one if any)
+            state.settings.aggregateColumn = state.settings.aggregateColumns[0] || '';
+            
             saveToStorage();
             renderDataContent();
             renderDashboard();
@@ -6010,6 +6100,20 @@
             const data = isAggregate ? calculateAggregateData() : getFilteredData();
             if (data.length === 0) { notify('No data', 'error'); return; }
             
+            // Build a map of variable names to labels
+            const nameToLabel = {};
+            state.fields.forEach(f => {
+                if (f.name && f.label) {
+                    nameToLabel[f.name] = f.label;
+                }
+            });
+            // Add system field labels
+            nameToLabel['_timestamp'] = 'Timestamp';
+            nameToLabel['_id'] = 'Record ID';
+            nameToLabel['_group'] = 'Group';
+            nameToLabel['_period'] = 'Period';
+            nameToLabel['_count'] = 'Count';
+            
             // For aggregate data, include _group, _period, _count; for case data, include _timestamp
             const headers = Object.keys(data[0]).filter(k => {
                 if (isAggregate) {
@@ -6018,7 +6122,9 @@
                 return !k.startsWith('_') || k === '_timestamp';
             });
             
-            let csv = headers.join(',') + '\n';
+            // Create header row with labels
+            const headerLabels = headers.map(h => nameToLabel[h] || h);
+            let csv = headerLabels.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
             
             data.forEach(row => {
                 csv += headers.map(h => `"${String(row[h] || '').replace(/"/g, '""')}"`).join(',') + '\n';
