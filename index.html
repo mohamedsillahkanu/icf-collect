@@ -5305,8 +5305,8 @@
                             input = `<div class="viewer-radio-group">${opts.map(o => `<label class="viewer-radio-option"><input type="radio" name="${field.name}" value="${escapeHtml(o)}" ${reqAttr}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
                             break;
                         case 'checkbox':
-                            // Add required to first checkbox only (for validation purposes)
-                            input = `<div class="viewer-radio-group">${(field.options||[]).map((o, idx) => `<label class="viewer-radio-option"><input type="checkbox" name="${field.name}" value="${escapeHtml(o)}" ${idx === 0 && field.required ? 'required' : ''}><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
+                            // Don't add HTML required - custom validation checks if ANY checkbox is checked
+                            input = `<div class="viewer-radio-group">${(field.options||[]).map((o, idx) => `<label class="viewer-radio-option"><input type="checkbox" name="${field.name}" value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></label>`).join('')}</div>`;
                             break;
                         case 'gps':
                             input = `<div><button type="button" onclick="captureGPS(this)" style="padding:10px 20px;background:#004080;color:white;border:none;border-radius:6px;cursor:pointer;"><span data-icon="map-pin" data-size="14"></span> Get Location</button><input type="hidden" name="${field.name}"><div class="gps-status" style="margin-top:6px;font-size:11px;"></div>
