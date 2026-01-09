@@ -494,34 +494,11 @@
         <div class="canvas-container">
             <div class="canvas-header">
                 <input type="text" class="form-title-input" id="formTitle" value="My Data Collection Form" placeholder="Form Title...">
-                <button onclick="toggleFormSettings()" style="padding:6px 12px;background:#004080;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Oswald',sans-serif;"><span data-icon="settings" data-size="12"></span> Form Settings</button>
+
                 <span style="color:#666;font-size:12px;font-weight:600;" id="fieldCount"><span data-icon="bar-chart-3" data-size="12"></span> 0 fields</span>
             </div>
             
-            <!-- Form Settings Panel -->
-            <div id="formSettingsPanel" style="display:none;background:#f8f9fa;border:2px solid #004080;border-radius:8px;padding:15px;margin-bottom:15px;">
-                <h4 style="margin:0 0 15px 0;color:#004080;font-size:14px;display:flex;align-items:center;gap:8px;"><span data-icon="settings" data-size="16"></span> Form Settings</h4>
-                
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;">
-                    <!-- Boundary Upload -->
-                    <div style="background:white;padding:12px;border-radius:6px;border:1px solid #dee2e6;">
-                        <label style="font-size:11px;font-weight:bold;color:#333;display:block;margin-bottom:8px;"><span data-icon="map" data-size="12"></span> Map Boundary (GeoJSON/Shapefile)</label>
-                        <input type="file" id="boundaryFileInputBuilder" accept=".json,.geojson,.zip" onchange="loadBoundaryFileFromBuilder(this)" style="font-size:11px;width:100%;">
-                        <div id="boundaryStatus" style="margin-top:8px;font-size:10px;"></div>
-                    </div>
-                    
-                    <!-- Form Logo -->
-                    <div style="background:white;padding:12px;border-radius:6px;border:1px solid #dee2e6;">
-                        <label style="font-size:11px;font-weight:bold;color:#333;display:block;margin-bottom:8px;"><span data-icon="image" data-size="12"></span> Form Logo URL</label>
-                        <input type="text" id="formLogoUrl" value="" placeholder="https://example.com/logo.png" onchange="updateFormLogo(this.value)" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:11px;">
-                    </div>
-                </div>
-                
-                <div style="margin-top:10px;text-align:right;">
-                    <button onclick="toggleFormSettings()" style="padding:6px 12px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Close Settings</button>
-                </div>
-            </div>
-            
+
             <div class="canvas">
                 <div class="form-preview">
                     <div class="form-preview-header">
@@ -949,8 +926,6 @@
                 logo: CONFIG.LOGO_URL,
                 aggregateColumn: '', // Legacy single column (for backward compatibility)
                 aggregateColumns: [], // Multiple columns for grouping in aggregate view
-                boundaryGeoJSON: null, // GeoJSON data for map boundary
-                boundaryName: '', // Name of uploaded boundary file
                 gpsField: '' // Which GPS field to use for mapping
             },
             sheets: {
@@ -6354,15 +6329,14 @@
         // ==================== GPS MAP FUNCTIONS ====================
         const gpsMapInstances = {}; // Store multiple map instances by suffix
         const gpsMarkersLayers = {};
-        const boundaryLayers = {};
         
         function renderGpsMapSection(filteredData, suffix = '') {
             // Find GPS fields in the form
             const gpsFields = state.fields.filter(f => f.type === 'gps');
             
-            // Show map if: has GPS fields OR has boundary uploaded
-            if (gpsFields.length === 0 && !state.settings.boundaryGeoJSON) {
-                return ''; // No GPS fields and no boundary, don't show map section
+            // Show map only if has GPS fields
+            if (gpsFields.length === 0) {
+                return ''; // No GPS fields, don't show map section
             }
             
             // Count records with GPS data
@@ -6392,12 +6366,6 @@
                                 ${gpsFieldOptions}
                             </select>
                         </div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:11px;font-weight:bold;">Boundary:</label>
-                            <input type="file" id="boundaryFileInput" accept=".json,.geojson,.zip" onchange="loadBoundaryFile(this)" style="font-size:11px;">
-                            ${state.settings.boundaryName ? `<span style="font-size:10px;color:#28a745;">✓ ${escapeHtml(state.settings.boundaryName)}</span>` : ''}
-                        </div>
-                        ${state.settings.boundaryGeoJSON ? `<button onclick="clearBoundary()" style="padding:4px 8px;font-size:10px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">Remove Boundary</button>` : ''}
                     </div>
                     
                     <div id="${mapId}"></div>
@@ -6472,7 +6440,6 @@
                 } catch (e) {}
                 delete gpsMapInstances[suffix];
                 delete gpsMarkersLayers[suffix];
-                delete boundaryLayers[suffix];
             }
             
             // Get GPS field to use
@@ -6494,10 +6461,10 @@
                 });
             }
             
-            // Show message if no GPS data and no boundary
-            if (points.length === 0 && !state.settings.boundaryGeoJSON) {
+            // Show message if no GPS data
+            if (points.length === 0) {
                 if (!selectedGpsField) {
-                    mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map', 16) + '</span> Add a GPS field to your form, or upload a boundary in Form Settings to see the map.</p>';
+                    mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map', 16) + '</span> Add a GPS field to your form to see the map.</p>';
                 } else {
                     mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map-pin', 16) + '</span> No GPS data collected yet. Submit data with GPS coordinates to see points on map.</p>';
                 }
@@ -6514,36 +6481,6 @@
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(map);
-            
-            // Add boundary layer if exists
-            if (state.settings.boundaryGeoJSON) {
-                try {
-                    boundaryLayers[suffix] = L.geoJSON(state.settings.boundaryGeoJSON, {
-                        style: {
-                            color: '#004080',
-                            weight: 2,
-                            fillColor: '#004080',
-                            fillOpacity: 0.1
-                        },
-                        onEachFeature: function(feature, layer) {
-                            if (feature.properties) {
-                                const props = Object.entries(feature.properties)
-                                    .filter(([k, v]) => v !== null && v !== '')
-                                    .map(([k, v]) => `<strong>${k}:</strong> ${v}`)
-                                    .join('<br>');
-                                if (props) {
-                                    layer.bindPopup(props);
-                                }
-                            }
-                        }
-                    }).addTo(map);
-                    
-                    // Fit to boundary
-                    map.fitBounds(boundaryLayers[suffix].getBounds());
-                } catch (e) {
-                    console.error('Error loading boundary:', e);
-                }
-            }
             
             // Add markers layer
             gpsMarkersLayers[suffix] = L.layerGroup().addTo(map);
@@ -6610,8 +6547,8 @@
                 legend.addTo(map);
             }
             
-            // Fit to all points if no boundary
-            if (points.length > 0 && !state.settings.boundaryGeoJSON) {
+            // Fit to all points
+            if (points.length > 0) {
                 const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
                 map.fitBounds(bounds, { padding: [20, 20] });
             }
@@ -6623,155 +6560,8 @@
             renderDashboard();
         };
         
-        // ==================== FORM SETTINGS FUNCTIONS ====================
-        window.toggleFormSettings = function() {
-            const panel = document.getElementById('formSettingsPanel');
-            if (panel) {
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                if (panel.style.display === 'block') {
-                    updateBoundaryStatus();
-                    // Set logo input value
-                    const logoInput = document.getElementById('formLogoUrl');
-                    if (logoInput && state.settings.logo) {
-                        logoInput.value = state.settings.logo;
-                    }
-                    initIcons();
-                }
-            }
-        };
+        // ==================== END MAP FUNCTIONS ====================
         
-        window.updateFormLogo = function(url) {
-            state.settings.logo = url || CONFIG.LOGO_URL;
-            saveToStorage();
-            notify('Logo updated');
-        };
-        
-        function updateBoundaryStatus() {
-            const statusEl = document.getElementById('boundaryStatus');
-            if (!statusEl) return;
-            
-            if (state.settings.boundaryGeoJSON) {
-                const featureCount = state.settings.boundaryGeoJSON.features ? state.settings.boundaryGeoJSON.features.length : 1;
-                statusEl.innerHTML = `<span style="color:#28a745;">✓ Loaded: <strong>${escapeHtml(state.settings.boundaryName || 'Boundary')}</strong> (${featureCount} features)</span>
-                    <button onclick="clearBoundaryFromBuilder()" style="margin-left:10px;padding:2px 8px;font-size:10px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;">Remove</button>`;
-            } else {
-                statusEl.innerHTML = '<span style="color:#868e96;">No boundary uploaded. Upload GeoJSON or Shapefile (.zip)</span>';
-            }
-        }
-        
-        window.loadBoundaryFileFromBuilder = async function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            const statusEl = document.getElementById('boundaryStatus');
-            if (statusEl) statusEl.innerHTML = '<span style="color:#ffc107;">Loading...</span>';
-            
-            try {
-                const fileName = file.name.toLowerCase();
-                let geojson;
-                
-                if (fileName.endsWith('.json') || fileName.endsWith('.geojson')) {
-                    const text = await file.text();
-                    geojson = JSON.parse(text);
-                } else if (fileName.endsWith('.zip')) {
-                    if (typeof shp === 'undefined') {
-                        notify('Shapefile parser not loaded. Try GeoJSON instead.', 'error');
-                        updateBoundaryStatus();
-                        return;
-                    }
-                    const buffer = await file.arrayBuffer();
-                    geojson = await shp(buffer);
-                } else {
-                    notify('Unsupported file type. Use .geojson, .json, or .zip (shapefile)', 'error');
-                    updateBoundaryStatus();
-                    return;
-                }
-                
-                if (!geojson || (!geojson.type && !geojson.features)) {
-                    notify('Invalid GeoJSON format', 'error');
-                    updateBoundaryStatus();
-                    return;
-                }
-                
-                state.settings.boundaryGeoJSON = geojson;
-                state.settings.boundaryName = file.name;
-                saveToStorage();
-                
-                updateBoundaryStatus();
-                notify('Boundary loaded: ' + file.name);
-                
-            } catch (err) {
-                console.error('Error loading boundary:', err);
-                notify('Error loading boundary: ' + err.message, 'error');
-                updateBoundaryStatus();
-            }
-        };
-        
-        window.clearBoundaryFromBuilder = function() {
-            if (confirm('Remove boundary layer?')) {
-                state.settings.boundaryGeoJSON = null;
-                state.settings.boundaryName = '';
-                saveToStorage();
-                updateBoundaryStatus();
-                notify('Boundary removed');
-            }
-        };
-        // ==================== END FORM SETTINGS FUNCTIONS ====================
-        
-        window.loadBoundaryFile = async function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            try {
-                const fileName = file.name.toLowerCase();
-                let geojson;
-                
-                if (fileName.endsWith('.json') || fileName.endsWith('.geojson')) {
-                    // Load GeoJSON directly
-                    const text = await file.text();
-                    geojson = JSON.parse(text);
-                } else if (fileName.endsWith('.zip')) {
-                    // Load shapefile (zip containing .shp, .dbf, etc.)
-                    if (typeof shp === 'undefined') {
-                        notify('Shapefile parser not loaded', 'error');
-                        return;
-                    }
-                    const buffer = await file.arrayBuffer();
-                    geojson = await shp(buffer);
-                } else {
-                    notify('Unsupported file type. Use .geojson, .json, or .zip (shapefile)', 'error');
-                    return;
-                }
-                
-                // Validate GeoJSON
-                if (!geojson || (!geojson.type && !geojson.features)) {
-                    notify('Invalid GeoJSON format', 'error');
-                    return;
-                }
-                
-                // Store boundary
-                state.settings.boundaryGeoJSON = geojson;
-                state.settings.boundaryName = file.name;
-                saveToStorage();
-                
-                notify('Boundary loaded: ' + file.name);
-                renderDashboard();
-                
-            } catch (err) {
-                console.error('Error loading boundary:', err);
-                notify('Error loading boundary file: ' + err.message, 'error');
-            }
-        };
-        
-        window.clearBoundary = function() {
-            if (confirm('Remove boundary layer?')) {
-                state.settings.boundaryGeoJSON = null;
-                state.settings.boundaryName = '';
-                saveToStorage();
-                renderDashboard();
-                notify('Boundary removed');
-            }
-        };
         
         window.zoomToAllPoints = function() {
             // Find the first available map
