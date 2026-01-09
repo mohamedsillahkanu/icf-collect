@@ -1,4 +1,4 @@
-<!DOCTYPE html>     
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -494,8 +494,34 @@
         <div class="canvas-container">
             <div class="canvas-header">
                 <input type="text" class="form-title-input" id="formTitle" value="My Data Collection Form" placeholder="Form Title...">
+                <button onclick="toggleFormSettings()" style="padding:6px 12px;background:#004080;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Oswald',sans-serif;"><span data-icon="settings" data-size="12"></span> Form Settings</button>
                 <span style="color:#666;font-size:12px;font-weight:600;" id="fieldCount"><span data-icon="bar-chart-3" data-size="12"></span> 0 fields</span>
             </div>
+            
+            <!-- Form Settings Panel -->
+            <div id="formSettingsPanel" style="display:none;background:#f8f9fa;border:2px solid #004080;border-radius:8px;padding:15px;margin-bottom:15px;">
+                <h4 style="margin:0 0 15px 0;color:#004080;font-size:14px;display:flex;align-items:center;gap:8px;"><span data-icon="settings" data-size="16"></span> Form Settings</h4>
+                
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:15px;">
+                    <!-- Boundary Upload -->
+                    <div style="background:white;padding:12px;border-radius:6px;border:1px solid #dee2e6;">
+                        <label style="font-size:11px;font-weight:bold;color:#333;display:block;margin-bottom:8px;"><span data-icon="map" data-size="12"></span> Map Boundary (GeoJSON/Shapefile)</label>
+                        <input type="file" id="boundaryFileInputBuilder" accept=".json,.geojson,.zip" onchange="loadBoundaryFileFromBuilder(this)" style="font-size:11px;width:100%;">
+                        <div id="boundaryStatus" style="margin-top:8px;font-size:10px;"></div>
+                    </div>
+                    
+                    <!-- Form Logo -->
+                    <div style="background:white;padding:12px;border-radius:6px;border:1px solid #dee2e6;">
+                        <label style="font-size:11px;font-weight:bold;color:#333;display:block;margin-bottom:8px;"><span data-icon="image" data-size="12"></span> Form Logo URL</label>
+                        <input type="text" id="formLogoUrl" value="" placeholder="https://example.com/logo.png" onchange="updateFormLogo(this.value)" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:11px;">
+                    </div>
+                </div>
+                
+                <div style="margin-top:10px;text-align:right;">
+                    <button onclick="toggleFormSettings()" style="padding:6px 12px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Close Settings</button>
+                </div>
+            </div>
+            
             <div class="canvas">
                 <div class="form-preview">
                     <div class="form-preview-header">
@@ -4518,8 +4544,8 @@
             try {
                 const response = await fetch(state.sheets.scriptUrl, {
                     method: 'POST', mode: 'cors', redirect: 'follow',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
                         action: 'saveForm',
                         email: state.user.email,
                         formId: formEntry.id,
@@ -4542,8 +4568,8 @@
             try {
                 const response = await fetch(state.sheets.scriptUrl, {
                     method: 'POST', mode: 'cors', redirect: 'follow',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
                         action: 'loadForms',
                         email: state.user.email
                     })
@@ -4607,8 +4633,8 @@
             try {
                 await fetch(state.sheets.scriptUrl, {
                     method: 'POST', mode: 'cors', redirect: 'follow',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
                         action: 'deleteForm',
                         email: state.user.email,
                         formId: formId,
@@ -5789,59 +5815,19 @@
                 console.log('Sheets data received:', sheetsData?.length || 0, 'records');
                 
                 if (sheetsData && sheetsData.length > 0) {
-                    // Use Google Sheets as primary data source
-                    // Sanitize data - fix date auto-conversion issues
                     state.collectedData = sheetsData.map(d => {
                         const sanitized = { ...d };
-                        
-                        // Convert _id to number if it's a string
                         sanitized._id = d._id ? (typeof d._id === 'string' ? parseInt(d._id) || d._id : d._id) : Date.now();
                         sanitized._synced = true;
-                        
-                        // Fix Google Sheets date auto-conversion for option values
-                        // Values like "2-4" might be converted to dates
-                        Object.keys(sanitized).forEach(key => {
-                            const val = sanitized[key];
-                            if (val && typeof val === 'string') {
-                                // Check if it looks like a date that was auto-converted from "X-Y" format
-                                // Google Sheets might return ISO date strings for values like "2-4"
-                                const dateMatch = val.match(/^\d{4}-\d{2}-\d{2}T/);
-                                if (dateMatch) {
-                                    // Try to find the original field to check if it's categorical
-                                    const field = state.fields.find(f => f.name === key);
-                                    if (field && ['select', 'radio', 'checkbox'].includes(field.type)) {
-                                        // This is a categorical field - keep original value if it matches an option
-                                        // Otherwise, it was likely a mistaken date conversion
-                                        if (!field.options?.includes(val)) {
-                                            // The value doesn't match any option - might be a date conversion error
-                                            // Try to extract what the original might have been
-                                            console.warn(`Possible date conversion issue in ${key}: ${val}`);
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                        
                         return sanitized;
                     });
                     console.log('✓ Data loaded from Google Sheets:', state.collectedData.length, 'records');
                 } else {
-                    // No data in Sheets, use whatever is in state.collectedData (from local storage)
                     console.log('No data in Sheets, using local data:', state.collectedData.length, 'records');
                 }
             } catch (err) {
                 console.error('Could not load from Sheets:', err.message);
-                // Keep using whatever is in state.collectedData
                 console.log('Fallback to local data:', state.collectedData.length, 'records');
-                
-                // Show error in UI
-                if (dataContainer) {
-                    dataContainer.innerHTML = `<div style="text-align:center;padding:20px;color:#dc3545;">
-                        <p><strong>Error loading data</strong></p>
-                        <p style="font-size:12px;">${escapeHtml(err.message)}</p>
-                        <button onclick="refreshData()" style="margin-top:10px;padding:8px 16px;background:#004080;color:white;border:none;border-radius:4px;cursor:pointer;">Retry</button>
-                    </div>`;
-                }
             }
             
             console.log('Rendering data content...');
@@ -6299,7 +6285,7 @@
                 
                 ${chartsHtml || '<div class="chart-container"><p style="text-align:center;color:#868e96;padding:30px;"><span class="inline-icon">' + getIcon('bar-chart-3', 18) + '</span> Add categorical fields for charts</p></div>'}
                 
-                ${renderGpsMapSection(filteredData)}
+                ${renderGpsMapSection(filteredData, 'dashboard')}
             `;
             
             // Render charts
@@ -6351,7 +6337,7 @@
                 });
                 
                 // Initialize GPS map after charts
-                initGpsMap(filteredData);
+                initGpsMap(filteredData, 'dashboard');
             }, 100);
             
             } catch (err) {
@@ -6361,28 +6347,34 @@
         }
 
         // ==================== GPS MAP FUNCTIONS ====================
-        let gpsMapInstance = null;
-        let gpsMarkersLayer = null;
-        let boundaryLayer = null;
+        const gpsMapInstances = {}; // Store multiple map instances by suffix
+        const gpsMarkersLayers = {};
+        const boundaryLayers = {};
         
-        function renderGpsMapSection(filteredData) {
+        function renderGpsMapSection(filteredData, suffix = '') {
             // Find GPS fields in the form
             const gpsFields = state.fields.filter(f => f.type === 'gps');
             
-            if (gpsFields.length === 0) {
-                return ''; // No GPS fields, don't show map section
+            // Show map if: has GPS fields OR has boundary uploaded
+            if (gpsFields.length === 0 && !state.settings.boundaryGeoJSON) {
+                return ''; // No GPS fields and no boundary, don't show map section
             }
             
             // Count records with GPS data
             const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
-            const recordsWithGps = filteredData.filter(d => {
-                const gpsValue = d[selectedGpsField];
-                return gpsValue && parseGpsCoordinates(gpsValue);
-            }).length;
+            let recordsWithGps = 0;
+            if (selectedGpsField) {
+                recordsWithGps = filteredData.filter(d => {
+                    const gpsValue = d[selectedGpsField];
+                    return gpsValue && parseGpsCoordinates(gpsValue);
+                }).length;
+            }
             
-            const gpsFieldOptions = gpsFields.map(f => 
+            const gpsFieldOptions = gpsFields.length > 0 ? gpsFields.map(f => 
                 `<option value="${f.name}" ${selectedGpsField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`
-            ).join('');
+            ).join('') : '<option value="">No GPS field in form</option>';
+            
+            const mapId = suffix ? `gpsMap_${suffix}` : 'gpsMap';
             
             return `
                 <div class="gps-map-container">
@@ -6403,7 +6395,7 @@
                         ${state.settings.boundaryGeoJSON ? `<button onclick="clearBoundary()" style="padding:4px 8px;font-size:10px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">Remove Boundary</button>` : ''}
                     </div>
                     
-                    <div id="gpsMap"></div>
+                    <div id="${mapId}"></div>
                     
                     <div class="map-controls">
                         <button class="modal-btn" onclick="zoomToAllPoints()" style="font-size:11px;padding:8px 12px;">
@@ -6457,8 +6449,9 @@
             return null;
         }
         
-        function initGpsMap(filteredData) {
-            const mapContainer = document.getElementById('gpsMap');
+        function initGpsMap(filteredData, suffix = '') {
+            const mapId = suffix ? `gpsMap_${suffix}` : 'gpsMap';
+            const mapContainer = document.getElementById(mapId);
             if (!mapContainer) return;
             
             // Check if Leaflet is available
@@ -6467,53 +6460,60 @@
                 return;
             }
             
-            // Destroy existing map
-            if (gpsMapInstance) {
-                gpsMapInstance.remove();
-                gpsMapInstance = null;
+            // Destroy existing map for this suffix
+            if (gpsMapInstances[suffix]) {
+                try {
+                    gpsMapInstances[suffix].remove();
+                } catch (e) {}
+                delete gpsMapInstances[suffix];
+                delete gpsMarkersLayers[suffix];
+                delete boundaryLayers[suffix];
             }
             
             // Get GPS field to use
             const gpsFields = state.fields.filter(f => f.type === 'gps');
             const selectedGpsField = state.settings.gpsField || gpsFields[0]?.name;
             
-            if (!selectedGpsField) {
-                mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;">No GPS field configured</p>';
-                return;
+            // Collect GPS points (if GPS field exists)
+            const points = [];
+            if (selectedGpsField) {
+                filteredData.forEach((record, idx) => {
+                    const coords = parseGpsCoordinates(record[selectedGpsField]);
+                    if (coords) {
+                        points.push({
+                            ...coords,
+                            record: record,
+                            index: idx
+                        });
+                    }
+                });
             }
             
-            // Collect GPS points
-            const points = [];
-            filteredData.forEach((record, idx) => {
-                const coords = parseGpsCoordinates(record[selectedGpsField]);
-                if (coords) {
-                    points.push({
-                        ...coords,
-                        record: record,
-                        index: idx
-                    });
-                }
-            });
-            
+            // Show message if no GPS data and no boundary
             if (points.length === 0 && !state.settings.boundaryGeoJSON) {
-                mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map-pin', 16) + '</span> No GPS data available. Collect data with GPS field to see points on map.</p>';
+                if (!selectedGpsField) {
+                    mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map', 16) + '</span> Add a GPS field to your form, or upload a boundary in Form Settings to see the map.</p>';
+                } else {
+                    mapContainer.innerHTML = '<p style="text-align:center;padding:40px;color:#868e96;"><span class="inline-icon">' + getIcon('map-pin', 16) + '</span> No GPS data collected yet. Submit data with GPS coordinates to see points on map.</p>';
+                }
                 return;
             }
             
             // Initialize map - default to Sierra Leone center if no points
             const defaultCenter = points.length > 0 ? [points[0].lat, points[0].lng] : [8.4606, -11.7799];
-            gpsMapInstance = L.map('gpsMap').setView(defaultCenter, 8);
+            const map = L.map(mapId).setView(defaultCenter, 8);
+            gpsMapInstances[suffix] = map;
             
             // Add tile layer (OpenStreetMap)
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
                 maxZoom: 19
-            }).addTo(gpsMapInstance);
+            }).addTo(map);
             
             // Add boundary layer if exists
             if (state.settings.boundaryGeoJSON) {
                 try {
-                    boundaryLayer = L.geoJSON(state.settings.boundaryGeoJSON, {
+                    boundaryLayers[suffix] = L.geoJSON(state.settings.boundaryGeoJSON, {
                         style: {
                             color: '#004080',
                             weight: 2,
@@ -6531,17 +6531,17 @@
                                 }
                             }
                         }
-                    }).addTo(gpsMapInstance);
+                    }).addTo(map);
                     
                     // Fit to boundary
-                    gpsMapInstance.fitBounds(boundaryLayer.getBounds());
+                    map.fitBounds(boundaryLayers[suffix].getBounds());
                 } catch (e) {
                     console.error('Error loading boundary:', e);
                 }
             }
             
             // Add markers layer
-            gpsMarkersLayer = L.layerGroup().addTo(gpsMapInstance);
+            gpsMarkersLayers[suffix] = L.layerGroup().addTo(map);
             
             // Get color field for differentiation
             const colorField = state.settings.aggregateColumns?.[0] || state.settings.aggregateColumn;
@@ -6588,7 +6588,7 @@
                 popupContent += '</div>';
                 marker.bindPopup(popupContent);
                 
-                gpsMarkersLayer.addLayer(marker);
+                gpsMarkersLayers[suffix].addLayer(marker);
             });
             
             // Add legend if color field is used
@@ -6602,13 +6602,13 @@
                     });
                     return div;
                 };
-                legend.addTo(gpsMapInstance);
+                legend.addTo(map);
             }
             
             // Fit to all points if no boundary
             if (points.length > 0 && !state.settings.boundaryGeoJSON) {
                 const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
-                gpsMapInstance.fitBounds(bounds, { padding: [20, 20] });
+                map.fitBounds(bounds, { padding: [20, 20] });
             }
         }
         
@@ -6617,6 +6617,101 @@
             saveToStorage();
             renderDashboard();
         };
+        
+        // ==================== FORM SETTINGS FUNCTIONS ====================
+        window.toggleFormSettings = function() {
+            const panel = document.getElementById('formSettingsPanel');
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                if (panel.style.display === 'block') {
+                    updateBoundaryStatus();
+                    // Set logo input value
+                    const logoInput = document.getElementById('formLogoUrl');
+                    if (logoInput && state.settings.logo) {
+                        logoInput.value = state.settings.logo;
+                    }
+                    initIcons();
+                }
+            }
+        };
+        
+        window.updateFormLogo = function(url) {
+            state.settings.logo = url || CONFIG.LOGO_URL;
+            saveToStorage();
+            notify('Logo updated');
+        };
+        
+        function updateBoundaryStatus() {
+            const statusEl = document.getElementById('boundaryStatus');
+            if (!statusEl) return;
+            
+            if (state.settings.boundaryGeoJSON) {
+                const featureCount = state.settings.boundaryGeoJSON.features ? state.settings.boundaryGeoJSON.features.length : 1;
+                statusEl.innerHTML = `<span style="color:#28a745;">✓ Loaded: <strong>${escapeHtml(state.settings.boundaryName || 'Boundary')}</strong> (${featureCount} features)</span>
+                    <button onclick="clearBoundaryFromBuilder()" style="margin-left:10px;padding:2px 8px;font-size:10px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer;">Remove</button>`;
+            } else {
+                statusEl.innerHTML = '<span style="color:#868e96;">No boundary uploaded. Upload GeoJSON or Shapefile (.zip)</span>';
+            }
+        }
+        
+        window.loadBoundaryFileFromBuilder = async function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const statusEl = document.getElementById('boundaryStatus');
+            if (statusEl) statusEl.innerHTML = '<span style="color:#ffc107;">Loading...</span>';
+            
+            try {
+                const fileName = file.name.toLowerCase();
+                let geojson;
+                
+                if (fileName.endsWith('.json') || fileName.endsWith('.geojson')) {
+                    const text = await file.text();
+                    geojson = JSON.parse(text);
+                } else if (fileName.endsWith('.zip')) {
+                    if (typeof shp === 'undefined') {
+                        notify('Shapefile parser not loaded. Try GeoJSON instead.', 'error');
+                        updateBoundaryStatus();
+                        return;
+                    }
+                    const buffer = await file.arrayBuffer();
+                    geojson = await shp(buffer);
+                } else {
+                    notify('Unsupported file type. Use .geojson, .json, or .zip (shapefile)', 'error');
+                    updateBoundaryStatus();
+                    return;
+                }
+                
+                if (!geojson || (!geojson.type && !geojson.features)) {
+                    notify('Invalid GeoJSON format', 'error');
+                    updateBoundaryStatus();
+                    return;
+                }
+                
+                state.settings.boundaryGeoJSON = geojson;
+                state.settings.boundaryName = file.name;
+                saveToStorage();
+                
+                updateBoundaryStatus();
+                notify('Boundary loaded: ' + file.name);
+                
+            } catch (err) {
+                console.error('Error loading boundary:', err);
+                notify('Error loading boundary: ' + err.message, 'error');
+                updateBoundaryStatus();
+            }
+        };
+        
+        window.clearBoundaryFromBuilder = function() {
+            if (confirm('Remove boundary layer?')) {
+                state.settings.boundaryGeoJSON = null;
+                state.settings.boundaryName = '';
+                saveToStorage();
+                updateBoundaryStatus();
+                notify('Boundary removed');
+            }
+        };
+        // ==================== END FORM SETTINGS FUNCTIONS ====================
         
         window.loadBoundaryFile = async function(input) {
             const file = input.files[0];
@@ -6674,15 +6769,23 @@
         };
         
         window.zoomToAllPoints = function() {
-            if (!gpsMapInstance || !gpsMarkersLayer) return;
+            // Find the first available map
+            const suffixes = Object.keys(gpsMapInstances);
+            if (suffixes.length === 0) return;
             
-            const markers = [];
-            gpsMarkersLayer.eachLayer(m => markers.push(m.getLatLng()));
-            
-            if (markers.length > 0) {
-                const bounds = L.latLngBounds(markers);
-                gpsMapInstance.fitBounds(bounds, { padding: [20, 20] });
-            }
+            suffixes.forEach(suffix => {
+                const map = gpsMapInstances[suffix];
+                const markersLayer = gpsMarkersLayers[suffix];
+                if (!map || !markersLayer) return;
+                
+                const markers = [];
+                markersLayer.eachLayer(m => markers.push(m.getLatLng()));
+                
+                if (markers.length > 0) {
+                    const bounds = L.latLngBounds(markers);
+                    map.fitBounds(bounds, { padding: [20, 20] });
+                }
+            });
         };
         
         window.downloadGeoJSON = function() {
