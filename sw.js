@@ -1,5 +1,5 @@
 // ICF Collect Service Worker for Offline Support
-const CACHE_NAME = 'icf-collect-v10';
+const CACHE_NAME = 'icf-collect-v11';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -21,11 +21,9 @@ self.addEventListener('install', event => {
         caches.open(CACHE_NAME)
             .then(cache => {
                 console.log('Caching core assets');
-                // Cache local assets
                 return cache.addAll(ASSETS_TO_CACHE);
             })
             .then(() => {
-                // Try to cache external assets (don't fail if some don't work)
                 return caches.open(CACHE_NAME).then(cache => {
                     return Promise.allSettled(
                         EXTERNAL_ASSETS.map(url => 
@@ -66,6 +64,14 @@ self.addEventListener('fetch', event => {
         return;
     }
     
+    // ✅ Skip DHIS2 and other external API calls — let browser handle directly
+    // This prevents CORS issues from service worker interception
+    if (url.hostname.includes('onrender.com') ||
+        url.hostname.includes('dhis2.org') ||
+        url.pathname.includes('/api/')) {
+        return;
+    }
+    
     // For Google Apps Script API calls - always try network
     if (url.hostname.includes('script.google.com') || 
         url.hostname.includes('script.googleusercontent.com')) {
@@ -84,14 +90,12 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             fetch(event.request)
                 .then(response => {
-                    // Cache the response
                     const responseClone = response.clone();
                     caches.open(CACHE_NAME)
                         .then(cache => cache.put('./index.html', responseClone));
                     return response;
                 })
                 .catch(() => {
-                    // Offline - serve cached index.html
                     console.log('Offline: serving cached page');
                     return caches.match('./index.html');
                 })
