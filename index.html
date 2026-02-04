@@ -1343,6 +1343,7 @@
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
 
+
         // ==================== DHIS2 ====================
         async function dhis2Request(endpoint, method = 'GET', payload = null) {
             const { url, username, password } = state.dhis2;
@@ -1361,26 +1362,34 @@
                 const proxy = PROXIES[i];
                 const proxiedUrl = buildProxyUrl(proxy, apiUrl, auth, method);
                 
-                const options = {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                let options;
+                
+                if (proxy.type === 'gas') {
+                    // GAS proxy: NO custom headers to avoid CORS preflight
+                    // Auth is already in the query string via buildProxyUrl
+                    options = {
+                        method: method === 'GET' ? 'GET' : 'POST',
+                        redirect: 'follow'
+                    };
+                    if (payload && method !== 'GET') {
+                        options.headers = { 'Content-Type': 'text/plain' };
+                        options.body = JSON.stringify(payload);
                     }
-                };
-                
-                // Add auth header for direct and CORS connections
-                if (proxy.type === 'direct' || proxy.type === 'cors') {
-                    options.headers['Authorization'] = 'Basic ' + auth;
-                }
-                
-                // For GAS proxy, use POST for non-GET methods
-                if (proxy.type === 'gas' && method !== 'GET') {
-                    options.method = 'POST';
-                }
-                
-                if (payload && method !== 'GET') {
-                    options.body = JSON.stringify(payload);
+                } else {
+                    // Direct/CORS: send full headers
+                    options = {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    };
+                    if (proxy.type === 'direct' || proxy.type === 'cors') {
+                        options.headers['Authorization'] = 'Basic ' + auth;
+                    }
+                    if (payload && method !== 'GET') {
+                        options.body = JSON.stringify(payload);
+                    }
                 }
                 
                 try {
@@ -1391,16 +1400,14 @@
                     try { data = JSON.parse(text); } catch (e) { data = text; }
                     
                     // Check for proxy errors - try next proxy
-                    // GAS proxy error format: {"error": {"status": 502, "message": "..."}}
-                    // or {"error": "Exception: ..."}
                     if (data && data.error) {
                         if (typeof data.error === 'object' && (data.error.status === 502 || data.error.status === 500)) {
                             lastError = `${proxy.name}: ${data.error.message || 'Proxy error'}`;
-                            continue; // Try next proxy
+                            continue;
                         }
                         if (typeof data.error === 'string' && (data.error.includes('Exception') || data.error.includes('fetch'))) {
                             lastError = `${proxy.name}: ${data.error}`;
-                            continue; // Try next proxy
+                            continue;
                         }
                     }
                     
@@ -1420,7 +1427,9 @@
                     if (data && data.httpStatusCode && data.httpStatusCode >= 400) {
                         return { success: false, status: data.httpStatusCode, error: data.message || 'Request failed', data: data };
                     }
-                    
+
+
+                            
                     // Success check - include 201 Created and other success patterns
                     const isSuccess = data && (
                         data.httpStatus === 'Created' ||
